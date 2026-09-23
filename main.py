@@ -1,13 +1,17 @@
 from app.repositories.enrollment_repository import EnrollmentRepository
+from app.repositories.grade_component_repository import GradeComponentRepository
 from app.repositories.score_repository import ScoreRepository
 from app.repositories.student_repository import StudentRepository
 from app.services.grading_service import GradingService
+from app.services.score_service import ScoreService
 
 
 student_repository = StudentRepository()
 enrollment_repository = EnrollmentRepository()
 score_repository = ScoreRepository()
+component_repository = GradeComponentRepository()
 grading_service = GradingService()
+score_service = ScoreService()
 
 
 def print_student(student):
@@ -64,28 +68,78 @@ def show_enrollments(student_id):
     return enrollments
 
 
+def show_components():
+    offering_id = input("Enter class offering ID: ").strip()
+
+    try:
+        components = component_repository.find_by_offering_id(offering_id)
+
+        if not components:
+            print("No grade components found.")
+            return
+
+        print("\nGrade Components")
+        print("----------------")
+
+        for component in components:
+            print(
+                f"{component[0]} | {component[1]} | {component[2]} | "
+                f"Max: {float(component[3]):.2f} | "
+                f"Weight: {float(component[8]):.2f}%"
+            )
+            print(f"   Period: {component[6]}")
+            print(f"   Description: {component[4] or 'None'}")
+    except Exception as error:
+        print(f"Database error: {error}")
+
+
 def show_scores():
     enrollment_id = input("Enter enrollment ID: ").strip()
 
     try:
-        scores = score_repository.find_by_enrollment_id(enrollment_id)
+        scores = score_service.get_scores(enrollment_id)
 
         if not scores:
             print("No scores found.")
             return
 
         print("\nGrade Component Scores")
-        print("-----------------------")
+        print("----------------------")
 
         for score in scores:
             print(
-                f"{score[5]} | {score[1]:.2f}/{score[7]:.2f} | "
-                f"{score[6]} | {score[12]}"
+                f"{score[5]} | {float(score[1]):.2f}/{float(score[7]):.2f} | "
+                f"{score[6]} | Weight: {float(score[10]):.2f}%"
             )
             print(f"   Component ID: {score[4]}")
-            print(f"   Weight: {score[10]:.2f}%")
+            print(f"   Period: {score[12]}")
             print(f"   Remarks: {score[2] or 'None'}")
             print(f"   Recorded: {score[3]}")
+    except Exception as error:
+        print(f"Database error: {error}")
+
+
+def record_score():
+    print("\nRecord / Update Score")
+    print("---------------------")
+
+    score_id = input("Score ID: ").strip()
+    enrollment_id = input("Enrollment ID: ").strip()
+    component_id = input("Component ID: ").strip()
+    score = input("Score: ").strip()
+    remarks = input("Remarks (optional): ").strip()
+
+    try:
+        score_service.record_score(
+            score_id=score_id,
+            enrollment_id=enrollment_id,
+            component_id=component_id,
+            score=score,
+            remarks=remarks
+        )
+        print("Score saved successfully.")
+    except ValueError as error:
+        print(f"Error: {error}")
     except Exception as error:
         print(f"Database error: {error}")
 
@@ -132,41 +186,39 @@ def main():
         print("1. List Students")
         print("2. Find Student")
         print("3. View Student Enrollments")
-        print("4. View Grade Component Scores")
-        print("5. Calculate and Save Grade")
-        print("6. View Saved Grade")
-        print("7. Exit")
+        print("4. View Grade Components")
+        print("5. View Grade Component Scores")
+        print("6. Record / Update Score")
+        print("7. Calculate and Save Grade")
+        print("8. View Saved Grade")
+        print("9. Exit")
 
         choice = input("Choose an option: ").strip()
 
         try:
             if choice == "1":
                 list_students()
-
             elif choice == "2":
                 student_id = input("Enter student ID: ").strip()
                 print_student(student_repository.find_by_id(student_id))
-
             elif choice == "3":
                 student_id = input("Enter student ID: ").strip()
                 show_enrollments(student_id)
-
             elif choice == "4":
-                show_scores()
-
+                show_components()
             elif choice == "5":
-                calculate_grade()
-
+                show_scores()
             elif choice == "6":
-                view_saved_grade()
-
+                record_score()
             elif choice == "7":
+                calculate_grade()
+            elif choice == "8":
+                view_saved_grade()
+            elif choice == "9":
                 print("Goodbye.")
                 break
-
             else:
-                print("Invalid option. Please choose 1-7.")
-
+                print("Invalid option. Please choose 1-9.")
         except Exception as error:
             print(f"Database error: {error}")
 
