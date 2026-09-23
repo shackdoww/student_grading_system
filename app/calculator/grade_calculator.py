@@ -1,10 +1,10 @@
 class GradeCalculator:
 
-    def calculate(self, scores):
+    def calculate_breakdown(self, scores):
         if not scores:
             raise ValueError("No scores were provided.")
 
-        category_totals = {}
+        categories = {}
 
         for score in scores:
             component_name = score[5]
@@ -16,12 +16,9 @@ class GradeCalculator:
             if max_score <= 0:
                 raise ValueError(f"Invalid max score for {component_name}.")
 
-            if student_score < 0:
-                raise ValueError(f"Score cannot be negative for {component_name}.")
-
-            if student_score > max_score:
+            if student_score < 0 or student_score > max_score:
                 raise ValueError(
-                    f"Score for {component_name} cannot exceed {max_score}."
+                    f"Score for {component_name} must be between 0 and {max_score:.2f}."
                 )
 
             if percentage <= 0 or percentage > 100:
@@ -29,33 +26,54 @@ class GradeCalculator:
                     f"Invalid percentage for grading category {percentage_id}."
                 )
 
-            if percentage_id not in category_totals:
-                category_totals[percentage_id] = {
+            if percentage_id not in categories:
+                categories[percentage_id] = {
                     "percentage": percentage,
-                    "scores": []
+                    "component_scores": []
                 }
 
-            category_totals[percentage_id]["scores"].append(
-                (student_score / max_score) * 100
-            )
+            category = categories[percentage_id]
+            category["component_scores"].append({
+                "component": component_name,
+                "score": student_score,
+                "max_score": max_score,
+                "percentage_score": (student_score / max_score) * 100
+            })
 
         total_weight = sum(
-            category["percentage"]
-            for category in category_totals.values()
+            category["percentage"] for category in categories.values()
         )
 
-        if total_weight <= 0:
-            raise ValueError("No valid grading percentage was found.")
+        if abs(total_weight - 100) > 0.001:
+            raise ValueError(
+                f"Grading percentages must total 100%. Current total: {total_weight:.2f}%."
+            )
 
         final_grade = 0
+        breakdown = []
 
-        for category in category_totals.values():
-            category_average = (
-                sum(category["scores"]) / len(category["scores"])
-            )
-            weighted_grade = (
-                category_average * (category["percentage"] / 100)
-            )
-            final_grade += weighted_grade
+        for percentage_id, category in categories.items():
+            average = sum(
+                item["percentage_score"]
+                for item in category["component_scores"]
+            ) / len(category["component_scores"])
 
-        return round(final_grade, 2)
+            weighted = average * (category["percentage"] / 100)
+            final_grade += weighted
+
+            breakdown.append({
+                "percentage_id": percentage_id,
+                "weight": category["percentage"],
+                "average": round(average, 2),
+                "weighted_grade": round(weighted, 2),
+                "components": category["component_scores"]
+            })
+
+        return {
+            "final_grade": round(final_grade, 2),
+            "total_weight": round(total_weight, 2),
+            "categories": breakdown
+        }
+
+    def calculate(self, scores):
+        return self.calculate_breakdown(scores)["final_grade"]
