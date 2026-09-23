@@ -265,8 +265,17 @@ class StudentGradingGUI(tk.Tk):
 
     def open_student_report(self):
         student_id = self._get_selected_student_id()
-        if student_id:
+
+        if not student_id:
+            return
+
+        try:
             StudentReportWindow(self, student_id)
+        except Exception as error:
+            messagebox.showerror(
+                "Student Report Error",
+                f"Unable to open the Student Academic Report.\n\n{error}"
+            )
 
     def refresh_students(self):
         try:
