@@ -147,7 +147,15 @@ class StudentReportWindow(tk.Toplevel):
                     grade_total += float(saved_grade[1])
                     graded_count += 1
                 else:
-                    grade_text = "Not saved"
+                    try:
+                        calculated_grade = self.grading_service.calculate_grade(
+                            enrollment[0]
+                        )
+                        grade_text = f"{calculated_grade:.2f}% (Calculated)"
+                        grade_total += float(calculated_grade)
+                        graded_count += 1
+                    except ValueError:
+                        grade_text = "No grade yet"
 
                 self.tree.insert(
                     "",
@@ -169,13 +177,13 @@ class StudentReportWindow(tk.Toplevel):
                 average = grade_total / graded_count
                 self.summary_var.set(
                     f"Enrollments: {len(enrollments)}    "
-                    f"Saved Grades: {graded_count}    "
-                    f"Average of Saved Grades: {average:.2f}%"
+                    f"Grades Available: {graded_count}    "
+                    f"Average: {average:.2f}%"
                 )
             else:
                 self.summary_var.set(
                     f"Enrollments: {len(enrollments)}    "
-                    "No saved grades yet."
+                    "No grades available yet."
                 )
 
         except Exception as error:
