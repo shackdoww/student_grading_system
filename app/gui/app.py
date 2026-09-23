@@ -3,6 +3,7 @@ from tkinter import messagebox, ttk
 
 from app.repositories.grade_component_repository import GradeComponentRepository
 from app.gui.academic_window import AcademicWindow
+from app.gui.enrollment_window import EnrollmentWindow
 from app.services.enrollment_service import EnrollmentService
 from app.services.grading_service import GradingService
 from app.services.score_service import ScoreService
@@ -243,8 +244,17 @@ class StudentGradingGUI(tk.Tk):
             command=self.open_academic_management
         ).pack(side="right")
 
+        ttk.Button(
+            actions,
+            text="Enrollment Management",
+            command=self.open_enrollment_management
+        ).pack(side="right", padx=(0, 8))
+
     def open_academic_management(self):
         AcademicWindow(self)
+
+    def open_enrollment_management(self):
+        EnrollmentWindow(self)
 
     def refresh_students(self):
         try:
