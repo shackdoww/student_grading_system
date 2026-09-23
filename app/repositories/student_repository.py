@@ -7,32 +7,73 @@ class StudentRepository:
         connection = get_connection()
         cursor = connection.cursor()
 
-        cursor.execute("""
-                       SELECT student_id, first_name, last_name, email, program, status
-                       FROM students
-                       ORDER BY last_name, first_name
-                       """)
-
-        students = cursor.fetchall()
-
-        cursor.close()
-        connection.close()
-
-        return students
+        try:
+            cursor.execute("""
+                SELECT student_id, first_name, last_name, email, program, status
+                FROM students
+                ORDER BY last_name, first_name
+            """)
+            return cursor.fetchall()
+        finally:
+            cursor.close()
+            connection.close()
 
     def find_by_id(self, student_id):
         connection = get_connection()
         cursor = connection.cursor()
 
-        cursor.execute("""
-                       SELECT student_id, first_name, last_name, email, program, status
-                       FROM students
-                       WHERE student_id = %s
-                       """, (student_id,))
+        try:
+            cursor.execute("""
+                SELECT student_id, first_name, last_name, email, program, status
+                FROM students
+                WHERE student_id = %s
+            """, (student_id,))
+            return cursor.fetchone()
+        finally:
+            cursor.close()
+            connection.close()
 
-        student = cursor.fetchone()
+    def save(self, student_id, first_name, last_name, email, program, status):
+        connection = get_connection()
+        cursor = connection.cursor()
 
-        cursor.close()
-        connection.close()
+        try:
+            cursor.execute("""
+                INSERT INTO students (
+                    student_id, first_name, last_name, email, program, status
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (student_id)
+                DO UPDATE SET
+                    first_name = EXCLUDED.first_name,
+                    last_name = EXCLUDED.last_name,
+                    email = EXCLUDED.email,
+                    program = EXCLUDED.program,
+                    status = EXCLUDED.status
+            """, (student_id, first_name, last_name, email, program, status))
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            cursor.close()
+            connection.close()
 
-        return student
+    def delete(self, student_id):
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        try:
+            cursor.execute(
+                "DELETE FROM students WHERE student_id = %s",
+                (student_id,)
+            )
+            deleted = cursor.rowcount > 0
+            connection.commit()
+            return deleted
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            cursor.close()
+            connection.close()
