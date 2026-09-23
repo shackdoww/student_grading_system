@@ -11,6 +11,7 @@ from app.services.enrollment_service import EnrollmentService
 from app.services.grading_service import GradingService
 from app.services.score_service import ScoreService
 from app.services.student_service import StudentService
+from app.gui.theme import apply_theme
 
 
 class StudentGradingGUI(tk.Tk):
@@ -30,35 +31,27 @@ class StudentGradingGUI(tk.Tk):
         self.enrollments = []
         self.current_enrollment_id = None
 
+        apply_theme(self)
         self._configure_style()
         self._build_ui()
         self.refresh_students()
 
     def _configure_style(self):
         style = ttk.Style(self)
-        try:
-            style.theme_use("vista")
-        except tk.TclError:
-            pass
-
-        style.configure("Title.TLabel", font=("Segoe UI", 16, "bold"))
-        style.configure("Section.TLabelframe.Label", font=("Segoe UI", 10, "bold"))
-        style.configure("Treeview", rowheight=24)
-        style.configure("Treeview.Heading", font=("Segoe UI", 9, "bold"))
+        style.configure("Title.TLabel", font=("Segoe UI", 17, "bold"))
 
     def _build_ui(self):
         header = ttk.Frame(self, padding=(12, 10, 12, 6))
         header.pack(fill="x")
 
-        ttk.Label(
-            header,
-            text="Student Information and Grading System",
-            style="Title.TLabel"
-        ).pack(side="left")
+        title_area = ttk.Frame(header)
+        title_area.pack(side="left")
+        ttk.Label(title_area, text="STUDENT INFORMATION SYSTEM", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(title_area, text="ACADEMIC COMMAND CENTER", style="Subtitle.TLabel").pack(anchor="w")
 
         ttk.Button(
             header,
-            text="Refresh",
+            text="⟳  Refresh",
             command=self.refresh_students
         ).pack(side="right")
 
@@ -249,13 +242,14 @@ class StudentGradingGUI(tk.Tk):
 
         ttk.Button(
             actions,
-            text="Class Grade Management",
-            command=self.open_class_grades
+            text="CLASS GRADES",
+            command=self.open_class_grades,
+            style="Accent.TButton"
         ).pack(side="left", padx=8)
 
         ttk.Button(
             actions,
-            text="Calculate & Save Grade",
+            text="SAVE GRADE",
             command=self.calculate_grade
         ).pack(side="left", padx=8)
 
