@@ -6,6 +6,7 @@ from app.gui.academic_window import AcademicWindow
 from app.gui.enrollment_window import EnrollmentWindow
 from app.gui.student_report_window import StudentReportWindow
 from app.gui.class_roster_window import ClassRosterWindow
+from app.gui.class_grade_window import ClassGradeWindow
 from app.services.enrollment_service import EnrollmentService
 from app.services.grading_service import GradingService
 from app.services.score_service import ScoreService
@@ -17,8 +18,8 @@ class StudentGradingGUI(tk.Tk):
         super().__init__()
 
         self.title("Student Information and Grading System")
-        self.geometry("1200x720")
-        self.minsize(1000, 620)
+        self.geometry("1050x620")
+        self.minsize(900, 540)
 
         self.student_service = StudentService()
         self.enrollment_service = EnrollmentService()
@@ -40,13 +41,13 @@ class StudentGradingGUI(tk.Tk):
         except tk.TclError:
             pass
 
-        style.configure("Title.TLabel", font=("Segoe UI", 20, "bold"))
+        style.configure("Title.TLabel", font=("Segoe UI", 16, "bold"))
         style.configure("Section.TLabelframe.Label", font=("Segoe UI", 10, "bold"))
-        style.configure("Treeview", rowheight=28)
+        style.configure("Treeview", rowheight=24)
         style.configure("Treeview.Heading", font=("Segoe UI", 9, "bold"))
 
     def _build_ui(self):
-        header = ttk.Frame(self, padding=(18, 15, 18, 10))
+        header = ttk.Frame(self, padding=(12, 10, 12, 6))
         header.pack(fill="x")
 
         ttk.Label(
@@ -61,7 +62,7 @@ class StudentGradingGUI(tk.Tk):
             command=self.refresh_students
         ).pack(side="right")
 
-        body = ttk.Frame(self, padding=(18, 0, 18, 18))
+        body = ttk.Frame(self, padding=(12, 0, 12, 12))
         body.pack(fill="both", expand=True)
 
         left = ttk.LabelFrame(
@@ -77,7 +78,7 @@ class StudentGradingGUI(tk.Tk):
             columns=("id", "name", "program", "status"),
             show="headings",
             selectmode="browse",
-            height=22
+            height=16
         )
 
         for column, title, width in [
@@ -102,7 +103,7 @@ class StudentGradingGUI(tk.Tk):
             self.on_student_selected
         )
 
-        student_actions = ttk.Frame(left, padding=(0, 10, 0, 0))
+        student_actions = ttk.Frame(left, padding=(0, 6, 0, 0))
         student_actions.pack(fill="x")
 
         ttk.Button(
@@ -123,7 +124,7 @@ class StudentGradingGUI(tk.Tk):
             command=self.delete_student
         ).pack(side="left", expand=True, fill="x")
 
-        right = ttk.Frame(body, padding=(15, 0, 0, 0))
+        right = ttk.Frame(body, padding=(10, 0, 0, 0))
         right.pack(side="left", fill="both", expand=True)
 
         info_frame = ttk.LabelFrame(
@@ -178,7 +179,7 @@ class StudentGradingGUI(tk.Tk):
         grade_frame.pack(fill="both", expand=True)
 
         summary = ttk.Frame(grade_frame)
-        summary.pack(fill="x", pady=(0, 10))
+        summary.pack(fill="x", pady=(0, 6))
 
         self.final_grade_var = tk.StringVar(value="Final Grade: --")
         self.weight_var = tk.StringVar(value="Total Weight: --")
@@ -186,7 +187,7 @@ class StudentGradingGUI(tk.Tk):
         ttk.Label(
             summary,
             textvariable=self.final_grade_var,
-            font=("Segoe UI", 14, "bold")
+            font=("Segoe UI", 12, "bold")
         ).pack(side="left")
 
         ttk.Label(
@@ -225,7 +226,7 @@ class StudentGradingGUI(tk.Tk):
         self.grade_tree.pack(side="left", fill="both", expand=True)
         grade_scroll.pack(side="right", fill="y")
 
-        actions = ttk.Frame(right, padding=(0, 10, 0, 0))
+        actions = ttk.Frame(right, padding=(0, 6, 0, 0))
         actions.pack(fill="x")
 
         ttk.Button(
@@ -244,6 +245,12 @@ class StudentGradingGUI(tk.Tk):
             actions,
             text="Class / Section View",
             command=self.open_class_roster
+        ).pack(side="left", padx=8)
+
+        ttk.Button(
+            actions,
+            text="Class Grade Management",
+            command=self.open_class_grades
         ).pack(side="left", padx=8)
 
         ttk.Button(
@@ -269,6 +276,15 @@ class StudentGradingGUI(tk.Tk):
 
     def open_enrollment_management(self):
         EnrollmentWindow(self)
+
+    def open_class_grades(self):
+        try:
+            ClassGradeWindow(self)
+        except Exception as error:
+            messagebox.showerror(
+                "Grade Management Error",
+                f"Unable to open Class Grade Management.\n\n{error}"
+            )
 
     def open_class_roster(self):
         try:
