@@ -74,6 +74,30 @@ class EnrollmentRepository:
             cursor.close()
             connection.close()
 
+    def find_by_offering_id(self, offering_id):
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT
+                    e.enrollment_id,
+                    s.student_id,
+                    s.first_name,
+                    s.last_name,
+                    s.program,
+                    e.status
+                FROM enrollments e
+                JOIN students s
+                    ON e.student_id = s.student_id
+                WHERE e.offering_id = %s
+                ORDER BY s.last_name, s.first_name
+            """, (offering_id,))
+            return cursor.fetchall()
+        finally:
+            cursor.close()
+            connection.close()
+
     def find_by_student_and_offering(self, student_id, offering_id):
         connection = get_connection()
         cursor = connection.cursor()
