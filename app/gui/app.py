@@ -394,7 +394,7 @@ class StudentGradingGUI(tk.Tk):
                 if item[0] == enrollment_id
             )
             components = self.component_repository.find_by_offering_id(
-                enrollment[4]
+                enrollment[3]
             )
 
         except Exception as error:
