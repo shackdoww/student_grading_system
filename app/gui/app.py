@@ -19,8 +19,8 @@ class StudentGradingGUI(tk.Tk):
         super().__init__()
 
         self.title("Student Information and Grading System")
-        self.geometry("1050x620")
-        self.minsize(900, 540)
+        self.geometry("920x540")
+        self.minsize(820, 500)
 
         self.student_service = StudentService()
         self.enrollment_service = EnrollmentService()
@@ -71,7 +71,7 @@ class StudentGradingGUI(tk.Tk):
             columns=("id", "name", "program", "status"),
             show="headings",
             selectmode="browse",
-            height=16
+            height=10
         )
 
         for column, title, width in [
@@ -169,7 +169,7 @@ class StudentGradingGUI(tk.Tk):
             style="Section.TLabelframe",
             padding=10
         )
-        grade_frame.pack(fill="both", expand=True)
+        grade_frame.pack(fill="x", expand=False)
 
         summary = ttk.Frame(grade_frame)
         summary.pack(fill="x", pady=(0, 6))
@@ -189,12 +189,13 @@ class StudentGradingGUI(tk.Tk):
         ).pack(side="right")
 
         table_frame = ttk.Frame(grade_frame)
-        table_frame.pack(fill="both", expand=True)
+        table_frame.pack(fill="x", expand=False)
 
         self.grade_tree = ttk.Treeview(
             table_frame,
             columns=("category", "component", "score", "percentage", "weight", "weighted"),
-            show="headings"
+            show="headings",
+            height=7
         )
 
         columns = [
@@ -222,48 +223,55 @@ class StudentGradingGUI(tk.Tk):
         actions = ttk.Frame(right, padding=(0, 6, 0, 0))
         actions.pack(fill="x")
 
+        row1 = ttk.Frame(actions)
+        row1.pack(fill="x", pady=(0, 4))
+
         ttk.Button(
-            actions,
-            text="Record / Update Score",
+            row1,
+            text="RECORD SCORE",
             command=self.open_score_dialog
-        ).pack(side="left")
+        ).pack(side="left", padx=(0, 5))
 
         ttk.Button(
-            actions,
-            text="Student Report",
-            command=self.open_student_report
-        ).pack(side="left", padx=8)
+            row1,
+            text="SAVE GRADE",
+            command=self.calculate_grade,
+            style="Accent.TButton"
+        ).pack(side="left", padx=5)
 
         ttk.Button(
-            actions,
-            text="Class / Section View",
-            command=self.open_class_roster
-        ).pack(side="left", padx=8)
-
-        ttk.Button(
-            actions,
+            row1,
             text="CLASS GRADES",
             command=self.open_class_grades,
             style="Accent.TButton"
-        ).pack(side="left", padx=8)
+        ).pack(side="left", padx=5)
+
+        row2 = ttk.Frame(actions)
+        row2.pack(fill="x")
 
         ttk.Button(
-            actions,
-            text="SAVE GRADE",
-            command=self.calculate_grade
-        ).pack(side="left", padx=8)
+            row2,
+            text="STUDENT REPORT",
+            command=self.open_student_report
+        ).pack(side="left", padx=(0, 5))
 
         ttk.Button(
-            actions,
-            text="Academic Management",
+            row2,
+            text="CLASS / SECTION",
+            command=self.open_class_roster
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            row2,
+            text="ACADEMIC MANAGEMENT",
             command=self.open_academic_management
-        ).pack(side="right")
+        ).pack(side="right", padx=(5, 0))
 
         ttk.Button(
-            actions,
-            text="Enrollment Management",
+            row2,
+            text="ENROLLMENT MANAGEMENT",
             command=self.open_enrollment_management
-        ).pack(side="right", padx=(0, 8))
+        ).pack(side="right", padx=5)
 
     def open_academic_management(self):
         AcademicWindow(self)
