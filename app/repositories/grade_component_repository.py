@@ -3,6 +3,28 @@ from app.database.connection import get_connection
 
 class GradeComponentRepository:
 
+    def find_by_id(self, component_id):
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT
+                    component_id,
+                    name,
+                    type,
+                    max_score,
+                    description,
+                    period_id,
+                    percentage_id
+                FROM grade_components
+                WHERE component_id = %s
+            """, (component_id,))
+            return cursor.fetchone()
+        finally:
+            cursor.close()
+            connection.close()
+
     def find_by_offering_id(self, offering_id):
         connection = get_connection()
         cursor = connection.cursor()
