@@ -5,6 +5,7 @@ from app.services.grading_service import GradingService
 from app.services.score_service import ScoreService
 from app.services.student_service import StudentService
 from app.services.enrollment_service import EnrollmentService
+from app.repositories.grade_component_repository import GradeComponentRepository
 
 
 class StudentGradingGUI(tk.Tk):
@@ -18,6 +19,7 @@ class StudentGradingGUI(tk.Tk):
         self.enrollment_service = EnrollmentService()
         self.score_service = ScoreService()
         self.grading_service = GradingService()
+        self.component_repository = GradeComponentRepository()
 
         self._build_ui()
         self.refresh_students()
@@ -270,9 +272,15 @@ class StudentGradingGUI(tk.Tk):
 
         try:
             scores = self.score_service.get_scores(enrollment_id)
+            enrollment = next(
+                item for item in self.enrollments if item[0] == enrollment_id
+            )
+            components = self.component_repository.find_by_offering_id(enrollment[4])
         except Exception as error:
             messagebox.showerror("Database Error", str(error))
             return
+
+        existing_scores = {row[4]: row for row in scores}
 
         dialog = tk.Toplevel(self)
         dialog.title("Record / Update Score")
@@ -287,14 +295,14 @@ class StudentGradingGUI(tk.Tk):
         component_combo = ttk.Combobox(frame, state="readonly", width=60)
         component_combo.pack(fill="x", pady=(3, 10))
 
-        components = {}
-        for score_row in scores:
+        component_map = {}
+        for component in components:
             label = (
-                f"{score_row[4]} | {score_row[5]} | "
-                f"Max {float(score_row[7]):.2f}"
+                f"{component[0]} | {component[1]} | "
+                f"Max {float(component[3]):.2f}"
             )
-            components[label] = score_row
-        component_combo["values"] = list(components.keys())
+            component_map[label] = component
+        component_combo["values"] = list(component_map.keys())
 
         ttk.Label(frame, text="Score").pack(anchor="w")
         score_var = tk.StringVar()
@@ -309,13 +317,15 @@ class StudentGradingGUI(tk.Tk):
                 messagebox.showwarning("Missing Component", "Select a component.")
                 return
 
-            row = components[component_combo.get()]
+            component = component_map[component_combo.get()]
+            existing = existing_scores.get(component[0])
+            score_id = existing[0] if existing else f"SC-{enrollment_id}-{component[0]}"
 
             try:
                 self.score_service.record_score(
-                    score_id=row[0],
+                    score_id=score_id,
                     enrollment_id=enrollment_id,
-                    component_id=row[4],
+                    component_id=component[0],
                     score=score_var.get(),
                     remarks=remarks_var.get()
                 )
@@ -327,11 +337,13 @@ class StudentGradingGUI(tk.Tk):
             except Exception as error:
                 messagebox.showerror("Score Error", str(error))
 
-        if scores:
+        if components:
             component_combo.current(0)
-            first = scores[0]
-            score_var.set(str(first[1]))
-            remarks_var.set(first[2] or "")
+            first_component = components[0]
+            existing = existing_scores.get(first_component[0])
+            if existing:
+                score_var.set(str(existing[1]))
+                remarks_var.set(existing[2] or "")
 
         ttk.Button(frame, text="Save Score", command=save).pack(pady=15)
 
