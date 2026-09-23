@@ -41,237 +41,214 @@ class StudentGradingGUI(tk.Tk):
         style.configure("Title.TLabel", font=("Segoe UI", 17, "bold"))
 
     def _build_ui(self):
-        header = ttk.Frame(self, padding=(12, 10, 12, 6))
-        header.pack(fill="x")
+        shell = ttk.Frame(self)
+        shell.pack(fill="both", expand=True)
 
-        title_area = ttk.Frame(header)
-        title_area.pack(side="left")
-        ttk.Label(title_area, text="STUDENT INFORMATION SYSTEM", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(title_area, text="ACADEMIC COMMAND CENTER", style="Subtitle.TLabel").pack(anchor="w")
+        sidebar = tk.Frame(shell, bg="#0B1015", width=190)
+        sidebar.pack(side="left", fill="y")
+        sidebar.pack_propagate(False)
 
-        ttk.Button(
-            header,
-            text="⟳  Refresh",
-            command=self.refresh_students
+        tk.Label(
+            sidebar, text="OW", bg="#0B1015", fg="#F99E1A",
+            font=("Segoe UI", 25, "bold")
+        ).pack(anchor="w", padx=18, pady=(20, 0))
+
+        tk.Label(
+            sidebar, text="ACADEMIC\nCOMMAND CENTER",
+            bg="#0B1015", fg="#F2F2F2",
+            justify="left", font=("Segoe UI", 9, "bold")
+        ).pack(anchor="w", padx=18, pady=(0, 24))
+
+        tk.Label(
+            sidebar, text="MAIN MENU", bg="#0B1015", fg="#66737E",
+            font=("Segoe UI", 8, "bold")
+        ).pack(anchor="w", padx=18, pady=(0, 6))
+
+        def nav_button(text, command, active=False):
+            bg = "#F99E1A" if active else "#0B1015"
+            fg = "#111820" if active else "#D5DCE1"
+            btn = tk.Button(
+                sidebar, text=text, command=command, anchor="w",
+                bg=bg, fg=fg, activebackground="#F99E1A",
+                activeforeground="#111820", relief="flat", bd=0,
+                font=("Segoe UI", 9, "bold"), padx=18, pady=9,
+                cursor="hand2"
+            )
+            btn.pack(fill="x", padx=10, pady=2)
+            return btn
+
+        nav_button("▣   Dashboard", lambda: None, True)
+        nav_button("●   Students", lambda: self.student_tree.focus())
+        nav_button("▤   Class Grades", self.open_class_grades)
+        nav_button("▥   Reports", self.open_student_report)
+        nav_button("⚙   Academic", self.open_academic_management)
+        nav_button("▦   Enrollments", self.open_enrollment_management)
+
+        tk.Frame(sidebar, bg="#27323B", height=1).pack(fill="x", padx=16, pady=18)
+
+        tk.Label(
+            sidebar, text="SYSTEM", bg="#0B1015", fg="#66737E",
+            font=("Segoe UI", 8, "bold")
+        ).pack(anchor="w", padx=18, pady=(0, 6))
+
+        nav_button("⟳   Refresh Data", self.refresh_students)
+
+        tk.Label(
+            sidebar, text="Student Information\nand Grading System",
+            bg="#0B1015", fg="#66737E", justify="left",
+            font=("Segoe UI", 7)
+        ).pack(side="bottom", anchor="w", padx=18, pady=16)
+
+        content = tk.Frame(shell, bg="#111820")
+        content.pack(side="left", fill="both", expand=True)
+
+        top = tk.Frame(content, bg="#111820")
+        top.pack(fill="x", padx=22, pady=(18, 12))
+
+        tk.Label(
+            top, text="Dashboard", bg="#111820", fg="#F2F2F2",
+            font=("Segoe UI", 20, "bold")
+        ).pack(side="left")
+
+        tk.Label(
+            top, text="  /  STUDENT OVERVIEW", bg="#111820", fg="#7E8A94",
+            font=("Segoe UI", 9, "bold")
+        ).pack(side="left", pady=(7, 0))
+
+        tk.Button(
+            top, text="⟳", command=self.refresh_students,
+            bg="#222E38", fg="#F99E1A", activebackground="#F99E1A",
+            activeforeground="#111820", relief="flat", bd=0,
+            font=("Segoe UI", 13, "bold"), width=3, cursor="hand2"
         ).pack(side="right")
 
-        body = ttk.Frame(self, padding=(12, 0, 12, 12))
-        body.pack(fill="both", expand=True)
+        cards = tk.Frame(content, bg="#111820")
+        cards.pack(fill="x", padx=22, pady=(0, 12))
 
-        left = ttk.LabelFrame(
-            body,
-            text="Students",
-            style="Section.TLabelframe",
-            padding=10
-        )
-        left.pack(side="left", fill="y")
+        def card(parent, title, variable):
+            box = tk.Frame(parent, bg="#1B252E", highlightbackground="#35424D",
+                           highlightthickness=1)
+            box.pack(side="left", fill="x", expand=True, padx=(0, 8))
+            tk.Label(box, text=title.upper(), bg="#1B252E", fg="#7E8A94",
+                     font=("Segoe UI", 7, "bold")).pack(anchor="w", padx=12, pady=(9, 0))
+            tk.Label(box, textvariable=variable, bg="#1B252E", fg="#F2F2F2",
+                     font=("Segoe UI", 16, "bold")).pack(anchor="w", padx=12, pady=(1, 8))
+            return box
+
+        self.student_count_var = tk.StringVar(value="0")
+        self.enrollment_count_var = tk.StringVar(value="0")
+        self.final_grade_card_var = tk.StringVar(value="--")
+        self.status_card_var = tk.StringVar(value="--")
+
+        card(cards, "Students", self.student_count_var)
+        card(cards, "Enrollments", self.enrollment_count_var)
+        card(cards, "Current Grade", self.final_grade_card_var)
+        card(cards, "Status", self.status_card_var)
+
+        workspace = tk.Frame(content, bg="#111820")
+        workspace.pack(fill="both", expand=True, padx=22, pady=(0, 18))
+
+        left = tk.Frame(workspace, bg="#1B252E", highlightbackground="#35424D",
+                        highlightthickness=1, width=330)
+        left.pack(side="left", fill="y", padx=(0, 10))
+        left.pack_propagate(False)
+
+        tk.Label(left, text="STUDENTS", bg="#1B252E", fg="#F99E1A",
+                 font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=12, pady=(10, 6))
 
         self.student_tree = ttk.Treeview(
-            left,
-            columns=("id", "name", "program", "status"),
-            show="headings",
-            selectmode="browse",
-            height=10
+            left, columns=("id", "name", "program", "status"),
+            show="headings", selectmode="browse", height=10
         )
-
         for column, title, width in [
-            ("id", "ID", 85),
-            ("name", "Name", 180),
-            ("program", "Program", 95),
-            ("status", "Status", 85)
+            ("id", "ID", 55), ("name", "Name", 125),
+            ("program", "Program", 75), ("status", "Status", 65)
         ]:
             self.student_tree.heading(column, text=title)
             self.student_tree.column(column, width=width, anchor="w")
+        self.student_tree.pack(fill="both", expand=True, padx=8)
+        self.student_tree.bind("<<TreeviewSelect>>", self.on_student_selected)
 
-        student_scroll = ttk.Scrollbar(
-            left,
-            orient="vertical",
-            command=self.student_tree.yview
-        )
-        self.student_tree.configure(yscrollcommand=student_scroll.set)
-        self.student_tree.pack(side="left", fill="y")
-        student_scroll.pack(side="right", fill="y")
-        self.student_tree.bind(
-            "<<TreeviewSelect>>",
-            self.on_student_selected
-        )
+        student_actions = ttk.Frame(left)
+        student_actions.pack(fill="x", padx=8, pady=8)
+        for text, command in [
+            ("ADD", self.add_student), ("EDIT", self.edit_student),
+            ("DELETE", self.delete_student)
+        ]:
+            ttk.Button(student_actions, text=text, command=command).pack(
+                side="left", fill="x", expand=True, padx=2
+            )
 
-        student_actions = ttk.Frame(left, padding=(0, 6, 0, 0))
-        student_actions.pack(fill="x")
-
-        ttk.Button(
-            student_actions,
-            text="Add",
-            command=self.add_student
-        ).pack(side="left", expand=True, fill="x")
-
-        ttk.Button(
-            student_actions,
-            text="Edit",
-            command=self.edit_student
-        ).pack(side="left", expand=True, fill="x", padx=4)
-
-        ttk.Button(
-            student_actions,
-            text="Delete",
-            command=self.delete_student
-        ).pack(side="left", expand=True, fill="x")
-
-        right = ttk.Frame(body, padding=(10, 0, 0, 0))
+        right = tk.Frame(workspace, bg="#1B252E", highlightbackground="#35424D",
+                         highlightthickness=1)
         right.pack(side="left", fill="both", expand=True)
 
-        info_frame = ttk.LabelFrame(
-            right,
-            text="Student Information",
-            style="Section.TLabelframe",
-            padding=12
-        )
-        info_frame.pack(fill="x")
+        info = tk.Frame(right, bg="#1B252E")
+        info.pack(fill="x", padx=14, pady=(10, 6))
+
+        tk.Label(info, text="SELECTED STUDENT", bg="#1B252E", fg="#F99E1A",
+                 font=("Segoe UI", 8, "bold")).pack(anchor="w")
 
         self.info_var = tk.StringVar(value="Select a student.")
-        ttk.Label(
-            info_frame,
-            textvariable=self.info_var,
-            justify="left"
-        ).pack(anchor="w")
+        tk.Label(info, textvariable=self.info_var, bg="#1B252E", fg="#DCE2E6",
+                 justify="left", font=("Segoe UI", 9)).pack(anchor="w", pady=(2, 0))
 
-        enrollment_frame = ttk.LabelFrame(
-            right,
-            text="Enrollment",
-            style="Section.TLabelframe",
-            padding=10
-        )
-        enrollment_frame.pack(fill="x", pady=10)
+        enrollment_frame = ttk.Frame(right)
+        enrollment_frame.pack(fill="x", padx=14, pady=(4, 8))
 
-        self.enrollment_combo = ttk.Combobox(
-            enrollment_frame,
-            state="readonly"
-        )
-        self.enrollment_combo.pack(
-            side="left",
-            fill="x",
-            expand=True
-        )
-        self.enrollment_combo.bind(
-            "<<ComboboxSelected>>",
-            self.on_enrollment_selected
+        self.enrollment_combo = ttk.Combobox(enrollment_frame, state="readonly")
+        self.enrollment_combo.pack(side="left", fill="x", expand=True)
+        self.enrollment_combo.bind("<<ComboboxSelected>>", self.on_enrollment_selected)
+        ttk.Button(enrollment_frame, text="↻", command=self.refresh_enrollments).pack(
+            side="left", padx=(6, 0)
         )
 
-        ttk.Button(
-            enrollment_frame,
-            text="Refresh",
-            command=self.refresh_enrollments
-        ).pack(side="left", padx=(8, 0))
+        grade_frame = tk.Frame(right, bg="#1B252E")
+        grade_frame.pack(fill="x", padx=14, pady=(0, 8))
 
-        grade_frame = ttk.LabelFrame(
-            right,
-            text="Grade Breakdown",
-            style="Section.TLabelframe",
-            padding=10
-        )
-        grade_frame.pack(fill="x", expand=False)
+        grade_top = tk.Frame(grade_frame, bg="#1B252E")
+        grade_top.pack(fill="x", pady=(0, 5))
 
-        summary = ttk.Frame(grade_frame)
-        summary.pack(fill="x", pady=(0, 6))
-
+        tk.Label(grade_top, text="GRADE BREAKDOWN", bg="#1B252E", fg="#F99E1A",
+                 font=("Segoe UI", 8, "bold")).pack(side="left")
         self.final_grade_var = tk.StringVar(value="Final Grade: --")
         self.weight_var = tk.StringVar(value="Total Weight: --")
+        tk.Label(grade_top, textvariable=self.final_grade_var, bg="#1B252E",
+                 fg="#F2F2F2", font=("Segoe UI", 11, "bold")).pack(side="right")
+        tk.Label(grade_top, textvariable=self.weight_var, bg="#1B252E",
+                 fg="#7E8A94", font=("Segoe UI", 8)).pack(side="right", padx=12)
 
-        ttk.Label(
-            summary,
-            textvariable=self.final_grade_var,
-            font=("Segoe UI", 12, "bold")
-        ).pack(side="left")
-
-        ttk.Label(
-            summary,
-            textvariable=self.weight_var
-        ).pack(side="right")
-
-        table_frame = ttk.Frame(grade_frame)
-        table_frame.pack(fill="x", expand=False)
+        table_frame = tk.Frame(grade_frame, bg="#1B252E")
+        table_frame.pack(fill="x")
 
         self.grade_tree = ttk.Treeview(
             table_frame,
             columns=("category", "component", "score", "percentage", "weight", "weighted"),
-            show="headings",
-            height=7
+            show="headings", height=6
         )
-
-        columns = [
-            ("category", "Category", 85),
-            ("component", "Component", 180),
-            ("score", "Score", 110),
-            ("percentage", "Percentage", 100),
-            ("weight", "Weight", 85),
-            ("weighted", "Weighted", 100)
-        ]
-
-        for column, title, width in columns:
+        for column, title, width in [
+            ("category", "Cat.", 48), ("component", "Component", 120),
+            ("score", "Score", 85), ("percentage", "%", 65),
+            ("weight", "Weight", 65), ("weighted", "Weighted", 75)
+        ]:
             self.grade_tree.heading(column, text=title)
             self.grade_tree.column(column, width=width, anchor="w")
+        self.grade_tree.pack(fill="x")
 
-        grade_scroll = ttk.Scrollbar(
-            table_frame,
-            orient="vertical",
-            command=self.grade_tree.yview
-        )
-        self.grade_tree.configure(yscrollcommand=grade_scroll.set)
-        self.grade_tree.pack(side="left", fill="both", expand=True)
-        grade_scroll.pack(side="right", fill="y")
+        actions = ttk.Frame(right)
+        actions.pack(fill="x", padx=12, pady=(4, 10))
 
-        actions = ttk.Frame(right, padding=(0, 6, 0, 0))
-        actions.pack(fill="x")
-
-        row1 = ttk.Frame(actions)
-        row1.pack(fill="x", pady=(0, 4))
-
-        ttk.Button(
-            row1,
-            text="RECORD SCORE",
-            command=self.open_score_dialog
-        ).pack(side="left", padx=(0, 5))
-
-        ttk.Button(
-            row1,
-            text="SAVE GRADE",
-            command=self.calculate_grade,
-            style="Accent.TButton"
-        ).pack(side="left", padx=5)
-
-        ttk.Button(
-            row1,
-            text="CLASS GRADES",
-            command=self.open_class_grades,
-            style="Accent.TButton"
-        ).pack(side="left", padx=5)
-
-        row2 = ttk.Frame(actions)
-        row2.pack(fill="x")
-
-        ttk.Button(
-            row2,
-            text="STUDENT REPORT",
-            command=self.open_student_report
-        ).pack(side="left", padx=(0, 5))
-
-        ttk.Button(
-            row2,
-            text="CLASS / SECTION",
-            command=self.open_class_roster
-        ).pack(side="left", padx=5)
-
-        ttk.Button(
-            row2,
-            text="ACADEMIC MANAGEMENT",
-            command=self.open_academic_management
-        ).pack(side="right", padx=(5, 0))
-
-        ttk.Button(
-            row2,
-            text="ENROLLMENT MANAGEMENT",
-            command=self.open_enrollment_management
-        ).pack(side="right", padx=5)
+        for text, command, style in [
+            ("RECORD SCORE", self.open_score_dialog, None),
+            ("SAVE GRADE", self.calculate_grade, "Accent.TButton"),
+            ("CLASS GRADES", self.open_class_grades, "Accent.TButton"),
+            ("STUDENT REPORT", self.open_student_report, None),
+            ("CLASS / SECTION", self.open_class_roster, None)
+        ]:
+            kwargs = {"text": text, "command": command}
+            if style:
+                kwargs["style"] = style
+            ttk.Button(actions, **kwargs).pack(side="left", padx=2)
 
     def open_academic_management(self):
         AcademicWindow(self)
