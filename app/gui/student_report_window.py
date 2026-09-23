@@ -77,7 +77,7 @@ class StudentReportWindow(tk.Toplevel):
                 "grade"
             ),
             show="headings",
-            style="ReportTreeview"
+            style="Treeview"
         )
 
         columns = [
