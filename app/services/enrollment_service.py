@@ -13,6 +13,11 @@ class EnrollmentService:
             raise ValueError("Student not found.")
         return self.repository.find_by_student_id(student_id)
 
+    def get_by_offering(self, offering_id):
+        if not self.offering_repository.find_by_id(offering_id):
+            raise ValueError("Class offering not found.")
+        return self.repository.find_by_offering_id(offering_id)
+
     def get(self, enrollment_id):
         enrollment = self.repository.find_by_id(enrollment_id)
         if not enrollment:
