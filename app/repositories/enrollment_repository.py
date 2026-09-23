@@ -74,6 +74,23 @@ class EnrollmentRepository:
             cursor.close()
             connection.close()
 
+    def find_by_student_and_offering(self, student_id, offering_id):
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT enrollment_id
+                FROM enrollments
+                WHERE student_id = %s
+                  AND offering_id = %s
+            """, (student_id, offering_id))
+            row = cursor.fetchone()
+            return row[0] if row else None
+        finally:
+            cursor.close()
+            connection.close()
+
     def save(self, enrollment_id, enroll_date, status, student_id, offering_id):
         connection = get_connection()
         cursor = connection.cursor()
