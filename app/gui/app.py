@@ -5,6 +5,7 @@ from app.repositories.grade_component_repository import GradeComponentRepository
 from app.gui.academic_window import AcademicWindow
 from app.gui.enrollment_window import EnrollmentWindow
 from app.gui.student_report_window import StudentReportWindow
+from app.gui.class_roster_window import ClassRosterWindow
 from app.services.enrollment_service import EnrollmentService
 from app.services.grading_service import GradingService
 from app.services.score_service import ScoreService
@@ -241,6 +242,12 @@ class StudentGradingGUI(tk.Tk):
 
         ttk.Button(
             actions,
+            text="Class / Section View",
+            command=self.open_class_roster
+        ).pack(side="left", padx=8)
+
+        ttk.Button(
+            actions,
             text="Calculate & Save Grade",
             command=self.calculate_grade
         ).pack(side="left", padx=8)
@@ -262,6 +269,15 @@ class StudentGradingGUI(tk.Tk):
 
     def open_enrollment_management(self):
         EnrollmentWindow(self)
+
+    def open_class_roster(self):
+        try:
+            ClassRosterWindow(self)
+        except Exception as error:
+            messagebox.showerror(
+                "Class View Error",
+                f"Unable to open the Class / Section View.\n\n{error}"
+            )
 
     def open_student_report(self):
         student_id = self._get_selected_student_id()
