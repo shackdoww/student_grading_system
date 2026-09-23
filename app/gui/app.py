@@ -98,6 +98,27 @@ class StudentGradingGUI(tk.Tk):
             self.on_student_selected
         )
 
+        student_actions = ttk.Frame(left, padding=(0, 10, 0, 0))
+        student_actions.pack(fill="x")
+
+        ttk.Button(
+            student_actions,
+            text="Add",
+            command=self.add_student
+        ).pack(side="left", expand=True, fill="x")
+
+        ttk.Button(
+            student_actions,
+            text="Edit",
+            command=self.edit_student
+        ).pack(side="left", expand=True, fill="x", padx=4)
+
+        ttk.Button(
+            student_actions,
+            text="Delete",
+            command=self.delete_student
+        ).pack(side="left", expand=True, fill="x")
+
         right = ttk.Frame(body, padding=(15, 0, 0, 0))
         right.pack(side="left", fill="both", expand=True)
 
@@ -244,6 +265,136 @@ class StudentGradingGUI(tk.Tk):
 
         except Exception as error:
             messagebox.showerror("Database Error", str(error))
+
+    def _get_selected_student_id(self):
+        selected = self.student_tree.selection()
+
+        if not selected:
+            messagebox.showwarning(
+                "No Student Selected",
+                "Select a student first."
+            )
+            return None
+
+        return self.student_tree.item(
+            selected[0],
+            "values"
+        )[0]
+
+    def add_student(self):
+        self.open_student_dialog()
+
+    def edit_student(self):
+        student_id = self._get_selected_student_id()
+
+        if student_id:
+            try:
+                student = self.student_service.get(student_id)
+                self.open_student_dialog(student)
+            except Exception as error:
+                messagebox.showerror("Student Error", str(error))
+
+    def delete_student(self):
+        student_id = self._get_selected_student_id()
+
+        if not student_id:
+            return
+
+        try:
+            student = self.student_service.get(student_id)
+        except Exception as error:
+            messagebox.showerror("Student Error", str(error))
+            return
+
+        confirmed = messagebox.askyesno(
+            "Delete Student",
+            f"Delete {student[1]} {student[2]} ({student_id})?\n\n"
+            "This will also remove the student's enrollments and related "
+            "scores/grades because of the database relationships."
+        )
+
+        if not confirmed:
+            return
+
+        try:
+            self.student_service.delete(student_id)
+            self.refresh_students()
+            messagebox.showinfo("Deleted", "Student deleted successfully.")
+        except Exception as error:
+            messagebox.showerror("Delete Error", str(error))
+
+    def open_student_dialog(self, student=None):
+        editing = student is not None
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Edit Student" if editing else "Add Student")
+        dialog.geometry("460x430")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        frame = ttk.Frame(dialog, padding=18)
+        frame.pack(fill="both", expand=True)
+
+        fields = [
+            ("Student ID", student[0] if editing else ""),
+            ("First Name", student[1] if editing else ""),
+            ("Last Name", student[2] if editing else ""),
+            ("Email", student[3] if editing else ""),
+            ("Program", student[4] if editing else ""),
+            ("Status", student[5] if editing else "Active")
+        ]
+
+        variables = {}
+
+        for label, value in fields:
+            ttk.Label(frame, text=label).pack(anchor="w", pady=(4, 2))
+
+            variable = tk.StringVar(value=value)
+            variables[label] = variable
+
+            entry = ttk.Entry(frame, textvariable=variable)
+
+            if editing and label == "Student ID":
+                entry.configure(state="disabled")
+
+            entry.pack(fill="x", pady=(0, 5))
+
+        def save():
+            values = {
+                label: variables[label].get().strip()
+                for label, _ in fields
+            }
+
+            try:
+                self.student_service.save(
+                    values["Student ID"],
+                    values["First Name"],
+                    values["Last Name"],
+                    values["Email"],
+                    values["Program"],
+                    values["Status"]
+                )
+
+                dialog.destroy()
+                self.refresh_students()
+
+                messagebox.showinfo(
+                    "Saved",
+                    "Student information saved successfully."
+                )
+
+            except Exception as error:
+                messagebox.showerror(
+                    "Save Error",
+                    str(error)
+                )
+
+        ttk.Button(
+            frame,
+            text="Save Student",
+            command=save
+        ).pack(fill="x", pady=(15, 0))
 
     def on_student_selected(self, event=None):
         selected = self.student_tree.selection()
