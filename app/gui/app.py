@@ -293,6 +293,8 @@ class StudentGradingGUI(tk.Tk):
             students = self.student_service.get_all()
             self.student_tree.delete(*self.student_tree.get_children())
 
+            self.student_count_var.set(str(len(students)))
+
             for student in students:
                 self.student_tree.insert(
                     "",
@@ -477,6 +479,7 @@ class StudentGradingGUI(tk.Tk):
     def load_enrollments(self, student_id):
         enrollments = self.enrollment_service.get_by_student(student_id)
         self.enrollments = enrollments
+        self.enrollment_count_var.set(str(len(enrollments)))
 
         self.enrollment_combo["values"] = [
             f"{row[0]} | {row[11]} - {row[12]} | "
@@ -509,6 +512,7 @@ class StudentGradingGUI(tk.Tk):
 
     def show_enrollment(self, enrollment):
         self.current_enrollment_id = enrollment[0]
+        self.status_card_var.set(str(enrollment[2]))
 
         try:
             breakdown = self.grading_service.get_grade_breakdown(
@@ -525,6 +529,9 @@ class StudentGradingGUI(tk.Tk):
 
         self.final_grade_var.set(
             f"Final Grade: {breakdown['final_grade']:.2f}%"
+        )
+        self.final_grade_card_var.set(
+            f"{breakdown['final_grade']:.2f}%"
         )
         self.weight_var.set(
             f"Total Weight: {breakdown['total_weight']:.2f}%"
@@ -550,6 +557,8 @@ class StudentGradingGUI(tk.Tk):
     def clear_grade_view(self, message=""):
         self.grade_tree.delete(*self.grade_tree.get_children())
         self.final_grade_var.set("Final Grade: --")
+        self.final_grade_card_var.set("--")
+        self.status_card_var.set("--")
         self.weight_var.set(message)
 
     def calculate_grade(self):
