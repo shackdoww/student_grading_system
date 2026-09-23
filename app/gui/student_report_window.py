@@ -20,6 +20,8 @@ class StudentReportWindow(tk.Toplevel):
         self.geometry("980x560")
         self.minsize(800, 480)
         self.transient(parent)
+        self.lift()
+        self.focus_force()
 
         self._configure_style()
         self._build_ui()
