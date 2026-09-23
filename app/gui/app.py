@@ -19,8 +19,9 @@ class StudentGradingGUI(tk.Tk):
         super().__init__()
 
         self.title("Student Information and Grading System")
-        self.geometry("920x540")
-        self.minsize(820, 500)
+        self._setup_dpi()
+        self.geometry("1000x620")
+        self.minsize(850, 520)
 
         self.student_service = StudentService()
         self.enrollment_service = EnrollmentService()
@@ -34,7 +35,15 @@ class StudentGradingGUI(tk.Tk):
         apply_theme(self)
         self._configure_style()
         self._build_ui()
+        self.bind("<Configure>", self._on_resize)
         self.refresh_students()
+
+    def _setup_dpi(self):
+        try:
+            dpi = self.winfo_fpixels("1i")
+            self.tk.call("tk", "scaling", max(1.0, min(1.5, dpi / 96.0)))
+        except tk.TclError:
+            pass
 
     def _configure_style(self):
         style = ttk.Style(self)
@@ -78,7 +87,7 @@ class StudentGradingGUI(tk.Tk):
             return btn
 
         nav_button("▣   Dashboard", lambda: None, True)
-        nav_button("●   Students", lambda: self.student_tree.focus())
+        nav_button("●   Students", self.focus_students)
         nav_button("▤   Class Grades", self.open_class_grades)
         nav_button("▥   Reports", self.open_student_report)
         nav_button("⚙   Academic", self.open_academic_management)
@@ -165,9 +174,10 @@ class StudentGradingGUI(tk.Tk):
             ("program", "Program", 75), ("status", "Status", 65)
         ]:
             self.student_tree.heading(column, text=title)
-            self.student_tree.column(column, width=width, anchor="w")
+            self.student_tree.column(column, width=width, anchor="w", stretch=(column != "id"))
         self.student_tree.pack(fill="both", expand=True, padx=8)
         self.student_tree.bind("<<TreeviewSelect>>", self.on_student_selected)
+        self.student_tree.bind("<Double-1>", self.on_student_selected)
 
         student_actions = ttk.Frame(left)
         student_actions.pack(fill="x", padx=8, pady=8)
@@ -249,6 +259,24 @@ class StudentGradingGUI(tk.Tk):
             if style:
                 kwargs["style"] = style
             ttk.Button(actions, **kwargs).pack(side="left", padx=2)
+
+    def _on_resize(self, event=None):
+        if event is None or event.widget is not self:
+            return
+        if hasattr(self, "student_tree"):
+            panel_width = max(260, int(self.winfo_width() * 0.30))
+            self.student_tree.column("name", width=max(110, panel_width - 185))
+
+    def focus_students(self):
+        self.student_tree.focus_set()
+        items = self.student_tree.get_children()
+        if items:
+            current = self.student_tree.selection()
+            item = current[0] if current else items[0]
+            self.student_tree.selection_set(item)
+            self.student_tree.focus(item)
+            self.student_tree.see(item)
+            self.on_student_selected()
 
     def open_academic_management(self):
         AcademicWindow(self)
