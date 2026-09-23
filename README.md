@@ -32,6 +32,26 @@ main.py
 requirements.txt
 ```
 
+## Backend Architecture
+
+The system uses Python as the application backend and PostgreSQL as the database backend.
+
+```
+GUI
+ ↓
+Python Services
+ ↓
+Repositories
+ ↓
+PostgreSQL
+```
+
+Python services handle application rules and validation. Repositories handle SQL access. PostgreSQL stores the data and enforces database constraints.
+
+## Applying the Existing-Database Migration
+
+If the database already exists, do not rerun `schema.sql` because it recreates the tables. Instead, run `app/database/migration_001_backend_validation.sql` once in PostgreSQL. It adds the grading validation triggers without dropping existing data.
+
 ## Setup
 
 1. Create the PostgreSQL database named `student_grading_system`.
