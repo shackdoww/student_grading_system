@@ -86,12 +86,12 @@ class StudentGradingGUI(ctk.CTk):
                      font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=22, pady=(0, 8))
 
         for text, command, active in [
-            ("▣   Dashboard", lambda: None, True),
-            ("●   Students", self.focus_students, False),
-            ("▤   Class Grades", self.open_class_grades, False),
-            ("▥   Reports", self.open_student_report, False),
-            ("⚙   Academic", self.open_academic_management, False),
-            ("▦   Enrollments", self.open_enrollment_management, False),
+            ("▣   Dashboard", lambda: self.show_card("dashboard"), True),
+            ("▤   Class Grades", lambda: self.show_card("class_grades"), False),
+            ("▥   Reports", lambda: self.show_card("reports"), False),
+            ("⚙   Academic", lambda: self.show_card("academic"), False),
+            ("▦   Enrollments", lambda: self.show_card("enrollments"), False),
+            ("▧   Class / Section", lambda: self.show_card("class_roster"), False),
         ]:
             self._nav(sidebar, text, command, active).pack(fill="x", padx=12, pady=3)
 
@@ -106,7 +106,13 @@ class StudentGradingGUI(ctk.CTk):
         content = ctk.CTkFrame(shell, fg_color=BG, corner_radius=0)
         content.pack(side="left", fill="both", expand=True)
 
-        header = ctk.CTkFrame(content, fg_color="transparent", height=66)
+        self.card_container = ctk.CTkFrame(content, fg_color=BG, corner_radius=0)
+        self.card_container.pack(fill="both", expand=True)
+
+        dashboard = ctk.CTkFrame(self.card_container, fg_color=BG, corner_radius=0)
+        dashboard.pack(fill="both", expand=True)
+
+        header = ctk.CTkFrame(dashboard, fg_color="transparent", height=66)
         header.pack(fill="x", padx=28, pady=(20, 6))
         header.pack_propagate(False)
         title = ctk.CTkFrame(header, fg_color="transparent")
@@ -120,7 +126,7 @@ class StudentGradingGUI(ctk.CTk):
                       hover_color=ACCENT, text_color=ACCENT,
                       font=("Segoe UI", 16, "bold")).pack(side="right", pady=6)
 
-        cards = ctk.CTkFrame(content, fg_color="transparent")
+        cards = ctk.CTkFrame(dashboard, fg_color="transparent")
         cards.pack(fill="x", padx=28, pady=(0, 16))
         self.student_count_var = tk.StringVar(value="0")
         self.enrollment_count_var = tk.StringVar(value="0")
@@ -142,7 +148,7 @@ class StudentGradingGUI(ctk.CTk):
                          text_color=ACCENT if accent else TEXT,
                          font=("Segoe UI", 19, "bold")).pack(anchor="w", padx=15)
 
-        workspace = ctk.CTkFrame(content, fg_color="transparent")
+        workspace = ctk.CTkFrame(dashboard, fg_color="transparent")
         workspace.pack(fill="both", expand=True, padx=28, pady=(0, 24))
 
         left = self._panel(workspace, width=360)
@@ -236,6 +242,19 @@ class StudentGradingGUI(ctk.CTk):
                           font=("Segoe UI", 8, "bold")).pack(side="left", fill="x",
                                                              expand=True, padx=3)
 
+        # Card-based navigation: all major sections stay in this window.
+        self.cards = {
+            "dashboard": dashboard,
+            "class_grades": ClassGradeWindow(self.card_container),
+            "academic": AcademicWindow(self.card_container),
+            "enrollments": EnrollmentWindow(self.card_container),
+            "class_roster": ClassRosterWindow(self.card_container),
+        }
+        self.report_card = None
+        for card in self.cards.values():
+            card.place_forget()
+        self.show_card("dashboard")
+
     def focus_students(self):
         items = self.student_tree.get_children()
         if items:
@@ -245,22 +264,49 @@ class StudentGradingGUI(ctk.CTk):
             self.student_tree.see(item)
             self.on_student_selected()
 
-    def open_academic_management(self): AcademicWindow(self)
-    def open_enrollment_management(self): EnrollmentWindow(self)
+    def show_card(self, name):
+        if name == "reports":
+            sid = self._get_selected_student_id()
+            if not sid:
+                return
+            if self.report_card is not None:
+                self.report_card.destroy()
+            self.report_card = StudentReportWindow(self.card_container, sid)
+            self.cards["reports"] = self.report_card
+
+        for card in self.cards.values():
+            card.place_forget()
+
+        card = self.cards.get(name)
+        if card is None:
+            return
+        card.place(relx=0, rely=0, relwidth=1, relheight=1)
+
+        if name == "enrollments":
+            card.refresh()
+        elif name == "class_grades":
+            card.refresh_offerings()
+        elif name == "class_roster":
+            card.refresh_offerings()
+        elif name == "academic":
+            for method in ("refresh_teachers", "refresh_subjects", "refresh_offerings",
+                           "refresh_periods", "refresh_percentages", "refresh_components"):
+                getattr(card, method)()
+
+    def open_academic_management(self):
+        self.show_card("academic")
+
+    def open_enrollment_management(self):
+        self.show_card("enrollments")
 
     def open_class_grades(self):
-        try: ClassGradeWindow(self)
-        except Exception as e: messagebox.showerror("Grade Management Error", str(e), parent=self)
+        self.show_card("class_grades")
 
     def open_class_roster(self):
-        try: ClassRosterWindow(self)
-        except Exception as e: messagebox.showerror("Class View Error", str(e), parent=self)
+        self.show_card("class_roster")
 
     def open_student_report(self):
-        sid = self._get_selected_student_id()
-        if sid:
-            try: StudentReportWindow(self, sid)
-            except Exception as e: messagebox.showerror("Student Report Error", str(e), parent=self)
+        self.show_card("reports")
 
     def refresh_students(self):
         try:
