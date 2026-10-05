@@ -21,7 +21,7 @@ from app.repositories.subject_repository import SubjectRepository
 from app.repositories.teacher_repository import TeacherRepository
 from app.services.enrollment_service import EnrollmentService
 from app.services.grading_service import GradingService
-from app.services.school_data_import_service import SchoolDataImportService
+from app.services.school_data_import_service import SchoolDataImportService, DATASETS
 from app.services.score_service import ScoreService
 from app.services.student_service import StudentService
 
@@ -736,7 +736,7 @@ class ImportPage(QWidget):
             if item.widget():
                 item.widget().deleteLater()
         self.row_labels = {}
-        for i, (table_name, filename, _) in enumerate(self.service.DATASETS):
+        for i, (table_name, filename, _) in enumerate(DATASETS):
             name = QLabel(table_name.replace("_", " ").title())
             name.setObjectName("cardTitle")
             file_label = QLabel(filename)
@@ -758,7 +758,7 @@ class ImportPage(QWidget):
         self.path.setText(folder)
         self.validate_btn.setEnabled(True)
         self.import_btn.setEnabled(False)
-        for table_name, filename, _ in self.service.DATASETS:
+        for table_name, filename, _ in DATASETS:
             self.row_labels[table_name].setText("FOUND" if os.path.isfile(os.path.join(folder, filename)) else "MISSING")
         self.status.setText("Folder selected. Validate all datasets before importing.")
 
