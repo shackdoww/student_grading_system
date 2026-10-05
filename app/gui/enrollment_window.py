@@ -7,13 +7,9 @@ from app.services.student_service import StudentService
 from app.services.academic_service import AcademicService
 
 
-class EnrollmentWindow(tk.Toplevel):
+class EnrollmentWindow(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("Enrollment Management")
-        self.geometry("1100x620")
-        self.minsize(900, 520)
-        self.transient(parent)
 
         self.enrollment_service = EnrollmentService()
         self.student_service = StudentService()
