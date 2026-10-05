@@ -85,15 +85,21 @@ class StudentGradingGUI(ctk.CTk):
         ctk.CTkLabel(sidebar, text="MAIN MENU", text_color="#5F6D78",
                      font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=22, pady=(0, 8))
 
-        for text, command, active in [
-            ("▣   Dashboard", lambda: self.show_card("dashboard"), True),
-            ("▤   Class Grades", lambda: self.show_card("class_grades"), False),
-            ("▥   Reports", lambda: self.show_card("reports"), False),
-            ("⚙   Academic", lambda: self.show_card("academic"), False),
-            ("▦   Enrollments", lambda: self.show_card("enrollments"), False),
-            ("▧   Class / Section", lambda: self.show_card("class_roster"), False),
+        self.nav_buttons = {}
+        for key, text in [
+            ("dashboard", "▣   Dashboard"),
+            ("class_grades", "▤   Class Grades"),
+            ("reports", "▥   Reports"),
+            ("academic", "⚙   Academic"),
+            ("enrollments", "▦   Enrollments"),
+            ("class_roster", "▧   Class / Section"),
         ]:
-            self._nav(sidebar, text, command, active).pack(fill="x", padx=12, pady=3)
+            button = self._nav(
+                sidebar, text, lambda key=key: self.show_card(key),
+                active=(key == "dashboard")
+            )
+            button.pack(fill="x", padx=12, pady=3)
+            self.nav_buttons[key] = button
 
         ctk.CTkFrame(sidebar, height=1, fg_color=BORDER).pack(fill="x", padx=20, pady=20)
         ctk.CTkLabel(sidebar, text="SYSTEM", text_color="#5F6D78",
@@ -281,6 +287,7 @@ class StudentGradingGUI(ctk.CTk):
         if card is None:
             return
         card.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self._set_active_nav(name)
 
         if name == "enrollments":
             card.refresh()
@@ -292,6 +299,16 @@ class StudentGradingGUI(ctk.CTk):
             for method in ("refresh_teachers", "refresh_subjects", "refresh_offerings",
                            "refresh_periods", "refresh_percentages", "refresh_components"):
                 getattr(card, method)()
+
+    def _set_active_nav(self, name):
+        """Highlight only the sidebar button for the currently visible card."""
+        for key, button in self.nav_buttons.items():
+            active = key == name
+            button.configure(
+                fg_color=ACCENT if active else "transparent",
+                hover_color=HOVER if active else PANEL,
+                text_color=BG if active else TEXT,
+            )
 
     def open_academic_management(self):
         self.show_card("academic")
