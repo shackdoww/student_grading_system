@@ -2,8 +2,9 @@ from datetime import date
 import os
 import sys
 
-from PySide6.QtCore import Qt, QSize, QDate
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtCore import Qt, QSize, QDate, QByteArray
+from PySide6.QtGui import QColor, QFont, QIcon, QPixmap, QPainter, QPen
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QLabel, QPushButton,
     QToolButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget,
@@ -45,6 +46,24 @@ YELLOW = "#FFF1C9"
 YELLOW_TEXT = "#9A721A"
 BORDER = "#E4DEEF"
 DANGER = "#D85C67"
+
+
+ICON_DIR = os.path.join(os.path.dirname(__file__), "assets", "icons")
+
+def sidebar_icon(name, color, size=22):
+    path = os.path.join(ICON_DIR, name)
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            svg = file.read().replace("currentColor", color).encode("utf-8")
+        renderer = QSvgRenderer(QByteArray(svg))
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        return QIcon(pixmap)
+    except (OSError, RuntimeError):
+        return QIcon()
 
 
 def styled_label(text, object_name):
@@ -187,7 +206,7 @@ class DashboardPage(QWidget):
 
         header = QHBoxLayout()
         title = QVBoxLayout()
-        h = QLabel("Good day 👋")
+        h = QLabel("Good day")
         h.setObjectName("pageTitle")
         sub = QLabel("A calm overview of your school data and student performance.")
         sub.setObjectName("subtitle")
@@ -804,6 +823,42 @@ class ImportPage(QWidget):
             self.app.error(f"Import failed. Transaction rolled back.\n\n{e}")
 
 
+
+class PatternBackground(QWidget):
+    """Soft decorative background that adds depth without competing with the data."""
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.fillRect(self.rect(), QColor(BG))
+
+        for x, y, size, color, alpha in [
+            (-90, -70, 260, PURPLE, 24),
+            (self.width() - 180, 35, 220, "#7BC7B1", 20),
+            (self.width() - 120, self.height() - 170, 250, "#F0B45B", 18),
+        ]:
+            c = QColor(color)
+            c.setAlpha(alpha)
+            painter.setBrush(c)
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(x, y, size, size)
+
+        dot = QColor(PURPLE)
+        dot.setAlpha(42)
+        painter.setBrush(dot)
+        painter.setPen(Qt.NoPen)
+        for row in range(5):
+            for col in range(7):
+                painter.drawEllipse(28 + col * 13, 30 + row * 13, 3, 3)
+
+        pen = QPen(QColor(PURPLE))
+        pen.setAlpha(35)
+        pen.setWidth(2)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawArc(self.width() - 210, self.height() - 130, 180, 110, 20 * 16, 120 * 16)
+        painter.end()
+
+
 class StudentHub(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -852,19 +907,22 @@ class StudentHub(QMainWindow):
 
         self.nav_buttons = {}
         items = [
-            ("dashboard", "⌂  Dashboard"),
-            ("grades", "▦  Class Grades"),
-            ("reports", "◫  Reports"),
-            ("academic", "✦  Academic"),
-            ("enrollments", "↗  Enrollments"),
-            ("roster", "☷  Class / Section"),
-            ("import", "⇩  Data Import"),
+            ("dashboard", "Dashboard", "house.svg"),
+            ("grades", "Class Grades", "chart.svg"),
+            ("reports", "Reports", "file-text.svg"),
+            ("academic", "Academic", "book-open.svg"),
+            ("enrollments", "Enrollments", "users-round.svg"),
+            ("roster", "Class / Section", "graduation-cap.svg"),
+            ("import", "Data Import", "upload.svg"),
         ]
-        for key, text in items:
+        for key, text, icon_name in items:
             b = QToolButton()
             b.setText(text)
-            b.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            b.setIcon(sidebar_icon(icon_name, MUTED))
+            b.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+            b.setIconSize(QSize(21, 21))
             b.setCheckable(True)
+            b.setProperty("icon_name", icon_name)
             b.clicked.connect(lambda checked=False, k=key: self.show_page(k))
             nl.addWidget(b)
             self.nav_buttons[key] = b
@@ -875,11 +933,14 @@ class StudentHub(QMainWindow):
 
         content = QFrame()
         content.setObjectName("content")
-        cl = QVBoxLayout(content)
+        cl = QGridLayout(content)
         cl.setContentsMargins(4, 2, 4, 2)
-        cl.setSpacing(0)
+        self.pattern = PatternBackground()
         self.stack = QStackedWidget()
-        cl.addWidget(self.stack)
+        self.stack.setObjectName("pageStack")
+        self.stack.setAttribute(Qt.WA_TranslucentBackground)
+        cl.addWidget(self.pattern, 0, 0)
+        cl.addWidget(self.stack, 0, 0)
         shell.addWidget(content, 1)
 
         self.pages = {}
@@ -902,7 +963,10 @@ class StudentHub(QMainWindow):
     def show_page(self, key):
         self.stack.setCurrentWidget(self.pages[key])
         for k, b in self.nav_buttons.items():
-            b.setChecked(k == key)
+            active = k == key
+            b.setChecked(active)
+            icon_name = b.property("icon_name")
+            b.setIcon(sidebar_icon(icon_name, "#FFFFFF" if active else MUTED))
         page = self.pages[key]
         refresh = getattr(page, "refresh", None)
         if callable(refresh):
@@ -951,6 +1015,10 @@ QFrame#sidebar {{
 }}
 QFrame#content {{
     background: transparent;
+}}
+QStackedWidget#pageStack {{
+    background: transparent;
+    border: 0;
 }}
 QLabel#brandMark {{
     background: {PURPLE_SOFT};
@@ -1019,11 +1087,12 @@ QToolButton {{
     background: transparent;
     color: {MUTED};
     border: 0;
-    border-radius: 13px;
+    border-radius: 14px;
     text-align: left;
     padding: 11px 13px;
     font-size: 13px;
     font-weight: 650;
+    spacing: 10px;
 }}
 QToolButton:hover {{
     background: {SURFACE_2};
@@ -1032,6 +1101,7 @@ QToolButton:hover {{
 QToolButton:checked {{
     background: {PURPLE};
     color: white;
+    padding-left: 14px;
 }}
 QPushButton {{
     background: {SURFACE_2};
