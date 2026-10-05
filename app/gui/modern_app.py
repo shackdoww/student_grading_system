@@ -17,25 +17,29 @@ from app.services.score_service import ScoreService
 from app.services.student_service import StudentService
 
 
-BG = "#101820"
-SIDEBAR = "#0B1117"
-PANEL = "#18232D"
-PANEL_2 = "#1E2B36"
-BORDER = "#30404C"
-ACCENT = "#F99E1A"
-HOVER = "#FFB84D"
-TEXT = "#F3F5F7"
-MUTED = "#91A0AC"
+BG = "#F6F4FB"
+SIDEBAR = "#FFFFFF"
+PANEL = "#FFFFFF"
+PANEL_2 = "#F0ECF8"
+BORDER = "#E4DEEF"
+ACCENT = "#7C5CFC"
+HOVER = "#967CFF"
+TEXT = "#28243A"
+MUTED = "#827B96"
+SUCCESS = "#5BCB9A"
+SKY = "#63B3ED"
+PEACH = "#FF9F8F"
+YELLOW = "#F6C85F"
 
 
 class StudentGradingGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("dark-blue")
+        ctk.set_appearance_mode("light")
+        ctk.set_default_color_theme("blue")
         self.title("Student Information and Grading System")
-        self.geometry("1180x720")
-        self.minsize(980, 620)
+        self.geometry("1240x780")
+        self.minsize(1050, 680)
 
         self.student_service = StudentService()
         self.enrollment_service = EnrollmentService()
@@ -52,24 +56,40 @@ class StudentGradingGUI(ctk.CTk):
     def _style_tables(self):
         style = ttk.Style(self)
         style.theme_use("clam")
-        style.configure("Treeview", background=PANEL_2, fieldbackground=PANEL_2,
-                        foreground=TEXT, borderwidth=0, rowheight=32,
+        style.configure(".", font=("Segoe UI", 10), background=BG, foreground=TEXT)
+        style.configure("TFrame", background=BG)
+        style.configure("Card.TFrame", background=PANEL)
+        style.configure("TLabel", background=BG, foreground=TEXT, font=("Segoe UI", 10))
+        style.configure("Title.TLabel", background=BG, foreground=TEXT, font=("Segoe UI", 24, "bold"))
+        style.configure("Muted.TLabel", background=BG, foreground=MUTED, font=("Segoe UI", 9))
+        style.configure("TButton", background=PANEL, foreground=TEXT, borderwidth=0,
+                        padding=(14, 9), font=("Segoe UI", 9, "bold"))
+        style.map("TButton", background=[("active", "#E7E1F4")], foreground=[("active", TEXT)])
+        style.configure("TNotebook", background=BG, borderwidth=0)
+        style.configure("TNotebook.Tab", background=PANEL_2, foreground=MUTED,
+                        padding=(16, 9), font=("Segoe UI", 9, "bold"))
+        style.map("TNotebook.Tab", background=[("selected", ACCENT)], foreground=[("selected", "#FFFFFF")])
+        style.configure("TCombobox", fieldbackground=PANEL, background=PANEL,
+                        foreground=TEXT, borderwidth=0, padding=7)
+        style.map("TCombobox", fieldbackground=[("readonly", PANEL)], foreground=[("readonly", TEXT)])
+        style.configure("Treeview", background=PANEL, fieldbackground=PANEL,
+                        foreground=TEXT, borderwidth=0, rowheight=44,
                         font=("Segoe UI", 9))
-        style.configure("Treeview.Heading", background="#263642",
+        style.configure("Treeview.Heading", background=PANEL_2,
                         foreground=MUTED, borderwidth=0,
-                        font=("Segoe UI", 8, "bold"), padding=(8, 7))
-        style.map("Treeview", background=[("selected", "#62471F")],
+                        font=("Segoe UI", 8, "bold"), padding=(10, 10))
+        style.map("Treeview", background=[("selected", "#E5DEFF")],
                   foreground=[("selected", TEXT)])
 
     def _panel(self, parent, **kw):
         return ctk.CTkFrame(parent, fg_color=PANEL, border_color=BORDER,
-                            border_width=1, corner_radius=12, **kw)
+                            border_width=1, corner_radius=20, **kw)
 
     def _nav(self, parent, text, command, active=False):
         return ctk.CTkButton(
             parent, text=text, command=command, anchor="w", height=38,
-            corner_radius=8, fg_color=ACCENT if active else "transparent",
-            hover_color=HOVER if active else PANEL, text_color=BG if active else TEXT,
+            corner_radius=16, fg_color=ACCENT if active else "transparent",
+            hover_color=HOVER if active else PANEL_2, text_color="#FFFFFF" if active else TEXT,
             font=("Segoe UI", 10, "bold"))
 
     def _build_ui(self):
@@ -80,9 +100,9 @@ class StudentGradingGUI(ctk.CTk):
         sidebar.pack(side="left", fill="y")
         sidebar.pack_propagate(False)
 
-        ctk.CTkLabel(sidebar, text="OW", text_color=ACCENT,
-                     font=("Segoe UI", 30, "bold")).pack(anchor="w", padx=22, pady=(24, 0))
-        ctk.CTkLabel(sidebar, text="ACADEMIC COMMAND CENTER", text_color=TEXT,
+        ctk.CTkLabel(sidebar, text="S", text_color=ACCENT,
+                     font=("Segoe UI", 32, "bold")).pack(anchor="w", padx=22, pady=(24, 0))
+        ctk.CTkLabel(sidebar, text="STUDENT HUB", text_color=TEXT,
                      font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=22, pady=(0, 30))
         ctk.CTkLabel(sidebar, text="MAIN MENU", text_color="#5F6D78",
                      font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=22, pady=(0, 8))
@@ -127,11 +147,11 @@ class StudentGradingGUI(ctk.CTk):
         title = ctk.CTkFrame(header, fg_color="transparent")
         title.pack(side="left")
         ctk.CTkLabel(title, text="Dashboard", text_color=TEXT,
-                     font=("Segoe UI", 25, "bold")).pack(anchor="w")
+                     font=("Segoe UI", 27, "bold")).pack(anchor="w")
         ctk.CTkLabel(title, text="STUDENT OVERVIEW", text_color=MUTED,
                      font=("Segoe UI", 9, "bold")).pack(anchor="w")
         ctk.CTkButton(header, text="⟳", command=self.refresh_students,
-                      width=42, height=38, corner_radius=9, fg_color=PANEL_2,
+                      width=42, height=38, corner_radius=16, fg_color=PANEL_2,
                       hover_color=ACCENT, text_color=ACCENT,
                       font=("Segoe UI", 16, "bold")).pack(side="right", pady=6)
 
@@ -155,7 +175,7 @@ class StudentGradingGUI(ctk.CTk):
                          font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=15, pady=(12, 0))
             ctk.CTkLabel(box, textvariable=var,
                          text_color=ACCENT if accent else TEXT,
-                         font=("Segoe UI", 19, "bold")).pack(anchor="w", padx=15)
+                         font=("Segoe UI", 22, "bold")).pack(anchor="w", padx=15)
 
         workspace = ctk.CTkFrame(dashboard, fg_color="transparent")
         workspace.pack(fill="both", expand=True, padx=28, pady=(0, 24))
@@ -181,7 +201,7 @@ class StudentGradingGUI(ctk.CTk):
         for text, command in [("ADD", self.add_student), ("EDIT", self.edit_student),
                              ("DELETE", self.delete_student)]:
             ctk.CTkButton(actions, text=text, command=command, height=34,
-                          corner_radius=7, fg_color=PANEL_2, hover_color="#30404C",
+                          corner_radius=14, fg_color=PANEL_2, hover_color="#30404C",
                           font=("Segoe UI", 8, "bold")).pack(side="left", fill="x",
                                                             expand=True, padx=2)
 
@@ -199,7 +219,7 @@ class StudentGradingGUI(ctk.CTk):
         enrollment = ctk.CTkFrame(right, fg_color="transparent")
         enrollment.pack(fill="x", padx=18, pady=(5, 9))
         self.enrollment_combo = ctk.CTkComboBox(
-            enrollment, state="readonly", height=36, corner_radius=8,
+            enrollment, state="readonly", height=36, corner_radius=14,
             fg_color=PANEL_2, border_color=BORDER, button_color=PANEL_2,
             button_hover_color=ACCENT, dropdown_fg_color=PANEL_2,
             dropdown_hover_color="#30404C")
@@ -246,8 +266,8 @@ class StudentGradingGUI(ctk.CTk):
             ("CLASS / SECTION", self.open_class_roster, PANEL_2)]:
             ctk.CTkButton(bottom, text=text, command=command, height=35,
                           corner_radius=7, fg_color=color,
-                          hover_color=HOVER if color == ACCENT else "#30404C",
-                          text_color=BG if color == ACCENT else TEXT,
+                          hover_color=HOVER if color == ACCENT else "#E1DAEF",
+                          text_color="#FFFFFF" if color == ACCENT else TEXT,
                           font=("Segoe UI", 8, "bold")).pack(side="left", fill="x",
                                                              expand=True, padx=3)
 
