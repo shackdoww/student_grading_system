@@ -1,0 +1,73 @@
+component_id,name,type,max_score,description,period_id,percentage_id
+GC101,Quiz 1,Quiz,20,Short assessment,GP001,PCT101
+GC102,Quiz 2,Quiz,20,Short assessment,GP001,PCT101
+GC103,Midterm Exam,Exam,100,Major examination,GP001,PCT102
+GC104,Final Exam,Exam,100,Major examination,GP001,PCT102
+GC105,Project,Activity,100,Performance task,GP001,PCT103
+GC106,Laboratory / Activity,Activity,100,Practical activity,GP001,PCT103
+GC107,Quiz 1,Quiz,20,Short assessment,GP001,PCT104
+GC108,Quiz 2,Quiz,20,Short assessment,GP001,PCT104
+GC109,Midterm Exam,Exam,100,Major examination,GP001,PCT105
+GC110,Final Exam,Exam,100,Major examination,GP001,PCT105
+GC111,Project,Activity,100,Performance task,GP001,PCT106
+GC112,Laboratory / Activity,Activity,100,Practical activity,GP001,PCT106
+GC113,Quiz 1,Quiz,20,Short assessment,GP001,PCT107
+GC114,Quiz 2,Quiz,20,Short assessment,GP001,PCT107
+GC115,Midterm Exam,Exam,100,Major examination,GP001,PCT108
+GC116,Final Exam,Exam,100,Major examination,GP001,PCT108
+GC117,Project,Activity,100,Performance task,GP001,PCT109
+GC118,Laboratory / Activity,Activity,100,Practical activity,GP001,PCT109
+GC119,Quiz 1,Quiz,20,Short assessment,GP001,PCT110
+GC120,Quiz 2,Quiz,20,Short assessment,GP001,PCT110
+GC121,Midterm Exam,Exam,100,Major examination,GP001,PCT111
+GC122,Final Exam,Exam,100,Major examination,GP001,PCT111
+GC123,Project,Activity,100,Performance task,GP001,PCT112
+GC124,Laboratory / Activity,Activity,100,Practical activity,GP001,PCT112
+GC125,Quiz 1,Quiz,20,Short assessment,GP001,PCT113
+GC126,Quiz 2,Quiz,20,Short assessment,GP001,PCT113
+GC127,Midterm Exam,Exam,100,Major examination,GP001,PCT114
+GC128,Final Exam,Exam,100,Major examination,GP001,PCT114
+GC129,Project,Activity,100,Performance task,GP001,PCT115
+GC130,Laboratory / Activity,Activity,100,Practical activity,GP001,PCT115
+GC131,Quiz 1,Quiz,20,Short assessment,GP001,PCT116
+GC132,Quiz 2,Quiz,20,Short assessment,GP001,PCT116
+GC133,Midterm Exam,Exam,100,Major examination,GP001,PCT117
+GC134,Final Exam,Exam,100,Major examination,GP001,PCT117
+GC135,Project,Activity,100,Performance task,GP001,PCT118
+GC136,Laboratory / Activity,Activity,100,Practical activity,GP001,PCT118
+GC137,Quiz 1,Quiz,20,Short assessment,GP002,PCT119
+GC138,Quiz 2,Quiz,20,Short assessment,GP002,PCT119
+GC139,Midterm Exam,Exam,100,Major examination,GP002,PCT120
+GC140,Final Exam,Exam,100,Major examination,GP002,PCT120
+GC141,Project,Activity,100,Performance task,GP002,PCT121
+GC142,Laboratory / Activity,Activity,100,Practical activity,GP002,PCT121
+GC143,Quiz 1,Quiz,20,Short assessment,GP002,PCT122
+GC144,Quiz 2,Quiz,20,Short assessment,GP002,PCT122
+GC145,Midterm Exam,Exam,100,Major examination,GP002,PCT123
+GC146,Final Exam,Exam,100,Major examination,GP002,PCT123
+GC147,Project,Activity,100,Performance task,GP002,PCT124
+GC148,Laboratory / Activity,Activity,100,Practical activity,GP002,PCT124
+GC149,Quiz 1,Quiz,20,Short assessment,GP002,PCT125
+GC150,Quiz 2,Quiz,20,Short assessment,GP002,PCT125
+GC151,Midterm Exam,Exam,100,Major examination,GP002,PCT126
+GC152,Final Exam,Exam,100,Major examination,GP002,PCT126
+GC153,Project,Activity,100,Performance task,GP002,PCT127
+GC154,Laboratory / Activity,Activity,100,Practical activity,GP002,PCT127
+GC155,Quiz 1,Quiz,20,Short assessment,GP002,PCT128
+GC156,Quiz 2,Quiz,20,Short assessment,GP002,PCT128
+GC157,Midterm Exam,Exam,100,Major examination,GP002,PCT129
+GC158,Final Exam,Exam,100,Major examination,GP002,PCT129
+GC159,Project,Activity,100,Performance task,GP002,PCT130
+GC160,Laboratory / Activity,Activity,100,Practical activity,GP002,PCT130
+GC161,Quiz 1,Quiz,20,Short assessment,GP002,PCT131
+GC162,Quiz 2,Quiz,20,Short assessment,GP002,PCT131
+GC163,Midterm Exam,Exam,100,Major examination,GP002,PCT132
+GC164,Final Exam,Exam,100,Major examination,GP002,PCT132
+GC165,Project,Activity,100,Performance task,GP002,PCT133
+GC166,Laboratory / Activity,Activity,100,Practical activity,GP002,PCT133
+GC167,Quiz 1,Quiz,20,Short assessment,GP002,PCT134
+GC168,Quiz 2,Quiz,20,Short assessment,GP002,PCT134
+GC169,Midterm Exam,Exam,100,Major examination,GP002,PCT135
+GC170,Final Exam,Exam,100,Major examination,GP002,PCT135
+GC171,Project,Activity,100,Performance task,GP002,PCT136
+GC172,Laboratory / Activity,Activity,100,Practical activity,GP002,PCT136
