@@ -6,7 +6,7 @@ from app.services.grading_service import GradingService
 from app.services.student_service import StudentService
 
 
-class StudentReportWindow(tk.Toplevel):
+class StudentReportWindow(ttk.Frame):
     def __init__(self, parent, student_id):
         super().__init__(parent)
 
@@ -15,13 +15,6 @@ class StudentReportWindow(tk.Toplevel):
         self.grading_service = GradingService()
 
         self.student_id = student_id
-
-        self.title("Student Academic Report")
-        self.geometry("980x560")
-        self.minsize(800, 480)
-        self.transient(parent)
-        self.lift()
-        self.focus_force()
 
         self._configure_style()
         self._build_ui()
