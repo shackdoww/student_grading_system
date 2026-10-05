@@ -14,7 +14,7 @@ Records:
 - 360 component scores
 - 60 final grades
 
-Import order:
+Import order used by the application:
 1. school_students.csv
 2. school_teachers.csv
 3. school_subjects.csv
@@ -26,6 +26,18 @@ Import order:
 9. school_grade_component_scores.csv
 10. school_grades.csv
 
-The data respects the schema foreign keys and score limits. Students use S101-S130 so the dataset does not conflict with the existing S001 sample student.
+## In-app import
 
-The application currently provides the CSV import workflow for students. The other CSVs form the complete relational test dataset for the corresponding Academic, Enrollment, Class Grades, and Report features.
+Use **Data Import** in the application's sidebar.
+
+1. Click **SELECT DATASET FOLDER**.
+2. Select this `test_data` folder.
+3. Click **VALIDATE DATA**.
+4. Review the validation result.
+5. Click **IMPORT ENTIRE SCHOOL DATASET**.
+
+The importer validates all ten files before writing anything. The database writes occur in foreign-key order inside one PostgreSQL transaction. If any insert/update fails, the entire transaction is rolled back.
+
+Records with an existing primary key are updated, which makes the school dataset import repeatable. Unique-key conflicts involving a different existing record are rejected during validation.
+
+The data uses S101-S130 for students so it does not conflict with the original S001 sample student.
