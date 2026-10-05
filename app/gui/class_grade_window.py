@@ -1,4 +1,5 @@
 import tkinter as tk
+import customtkinter as ctk
 from tkinter import messagebox, ttk
 from datetime import date
 
@@ -8,9 +9,9 @@ from app.services.grading_service import GradingService
 from app.services.score_service import ScoreService
 
 
-class ClassGradeWindow(ttk.Frame):
+class ClassGradeWindow(ctk.CTkFrame):
     def __init__(self, parent):
-        super().__init__(parent)
+        super().__init__(parent, fg_color="#F6F4FB", corner_radius=0)
 
         self.academic = AcademicService()
         self.enrollments = EnrollmentService()
@@ -24,7 +25,7 @@ class ClassGradeWindow(ttk.Frame):
         self.refresh_offerings()
 
     def _build_ui(self):
-        frame = ttk.Frame(self, padding=12)
+        frame = ttk.Frame(self, padding=22)
         frame.pack(fill="both", expand=True)
 
         top = ttk.Frame(frame)
