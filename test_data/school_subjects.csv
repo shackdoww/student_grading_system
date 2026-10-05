@@ -1,0 +1,13 @@
+subject_id,subject_code,subject_name,description,units
+SUB001,CS101,Introduction to Computing,Foundations of computing and problem solving,3
+SUB002,CS102,Programming 1,Structured programming fundamentals,3
+SUB003,CS201,Data Structures,Algorithms and data structures,3
+SUB004,CS202,Database Systems,Relational databases and SQL,3
+SUB005,CS203,Object-Oriented Programming,Object-oriented design and programming,3
+SUB006,CS204,Web Development,Client and server web technologies,3
+SUB007,CS205,Computer Networks,Networking concepts and protocols,3
+SUB008,CS301,Software Engineering,Software development processes and practices,3
+SUB009,CS302,Operating Systems,Operating system concepts,3
+SUB010,CS303,Information Assurance,Security principles and risk management,3
+SUB011,MATH101,Calculus,Differential and integral calculus,3
+SUB012,STAT101,Statistics,Descriptive and inferential statistics,3
