@@ -851,7 +851,7 @@ class PatternBackground(QWidget):
                 painter.drawEllipse(28 + col * 13, 30 + row * 13, 3, 3)
 
         pen = QPen(QColor(PURPLE))
-        pen.setColor(QColor(PURPLE, 35))
+        arc_color = QColor(PURPLE)\n        arc_color.setAlpha(35)\n        pen.setColor(arc_color)
         pen.setWidth(2)
         painter.setPen(pen)
         painter.setBrush(Qt.NoBrush)
