@@ -927,6 +927,23 @@ class StudentHub(QMainWindow):
             nl.addWidget(b)
             self.nav_buttons[key] = b
         nl.addStretch()
+
+        identity = QFrame()
+        identity.setObjectName("sidebarIdentity")
+        il = QVBoxLayout(identity)
+        il.setContentsMargins(14, 12, 14, 12)
+        il.setSpacing(5)
+        il.addWidget(styled_label("YOUR WORKSPACE", "identityEyebrow"))
+        identity_title = QLabel("Everything in one place")
+        identity_title.setObjectName("identityTitle")
+        identity_title.setWordWrap(True)
+        il.addWidget(identity_title)
+        identity_meta = QLabel("Students · Classes · Grades")
+        identity_meta.setObjectName("identityMeta")
+        il.addWidget(identity_meta)
+        nl.addWidget(identity)
+
+        nl.addSpacing(10)
         nl.addWidget(styled_label("POSTGRESQL SCHOOL SYSTEM", "sidebarFoot"))
         nl.addWidget(styled_label("Desktop workspace · PySide6", "sidebarFoot"))
         shell.addWidget(nav)
@@ -956,6 +973,7 @@ class StudentHub(QMainWindow):
             ("academic", self.academic), ("enrollments", self.enrollments),
             ("roster", self.roster), ("import", self.import_page)
         ]:
+            page.setAttribute(Qt.WA_TranslucentBackground)
             self.pages[key] = page
             self.stack.addWidget(page)
         self.show_page("dashboard")
@@ -1071,6 +1089,26 @@ QLabel#heroGrade {{
     padding-top: 6px;
 }}
 QLabel#sidebarFoot {{
+    color: {MUTED};
+    font-size: 10px;
+}}
+QFrame#sidebarIdentity {{
+    background: {PURPLE_SOFT};
+    border: 1px solid #DDD3FF;
+    border-radius: 18px;
+}}
+QLabel#identityEyebrow {{
+    color: {PURPLE};
+    font-size: 9px;
+    font-weight: 850;
+    letter-spacing: 1px;
+}}
+QLabel#identityTitle {{
+    color: {TEXT};
+    font-size: 13px;
+    font-weight: 800;
+}}
+QLabel#identityMeta {{
     color: {MUTED};
     font-size: 10px;
 }}
