@@ -5,6 +5,7 @@ import csv
 import customtkinter as ctk
 
 from app.gui.academic_window import AcademicWindow
+from app.gui.data_import_window import DataImportWindow
 from app.gui.class_grade_window import ClassGradeWindow
 from app.gui.class_roster_window import ClassRosterWindow
 from app.gui.enrollment_window import EnrollmentWindow
@@ -94,6 +95,7 @@ class StudentGradingGUI(ctk.CTk):
             ("academic", "⚙   Academic"),
             ("enrollments", "▦   Enrollments"),
             ("class_roster", "▧   Class / Section"),
+            ("data_import", "⇩   Data Import"),
         ]:
             button = self._nav(
                 sidebar, text, lambda key=key: self.show_card(key),
@@ -177,7 +179,7 @@ class StudentGradingGUI(ctk.CTk):
         actions = ctk.CTkFrame(left, fg_color="transparent")
         actions.pack(fill="x", padx=10, pady=(0, 12))
         for text, command in [("ADD", self.add_student), ("EDIT", self.edit_student),
-                             ("DELETE", self.delete_student), ("IMPORT CSV", self.import_students_csv)]:
+                             ("DELETE", self.delete_student)]:
             ctk.CTkButton(actions, text=text, command=command, height=34,
                           corner_radius=7, fg_color=PANEL_2, hover_color="#30404C",
                           font=("Segoe UI", 8, "bold")).pack(side="left", fill="x",
@@ -256,6 +258,7 @@ class StudentGradingGUI(ctk.CTk):
             "academic": AcademicWindow(self.card_container),
             "enrollments": EnrollmentWindow(self.card_container),
             "class_roster": ClassRosterWindow(self.card_container),
+            "data_import": DataImportWindow(self.card_container, self),
         }
         self.report_card = None
         for card in self.cards.values():
