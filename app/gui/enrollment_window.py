@@ -1,4 +1,5 @@
 import tkinter as tk
+import customtkinter as ctk
 from tkinter import messagebox, ttk
 from datetime import date
 
@@ -7,9 +8,9 @@ from app.services.student_service import StudentService
 from app.services.academic_service import AcademicService
 
 
-class EnrollmentWindow(ttk.Frame):
+class EnrollmentWindow(ctk.CTkFrame):
     def __init__(self, parent):
-        super().__init__(parent)
+        super().__init__(parent, fg_color="#F6F4FB", corner_radius=0)
 
         self.enrollment_service = EnrollmentService()
         self.student_service = StudentService()
@@ -204,7 +205,7 @@ class EnrollmentWindow(ttk.Frame):
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
 
-        frame = ttk.Frame(dialog, padding=18)
+        frame = ttk.Frame(dialog, padding=22)
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text="Enrollment ID").pack(anchor="w")
