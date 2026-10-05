@@ -151,7 +151,6 @@ class SchoolDataImportService:
                         continue
                     cursor.execute(f"SELECT {field}, {self._pk(table)} FROM {table} WHERE {field} = ANY(%s)", (values,))
                     existing = cursor.fetchall()
-                    incoming_pk = {r[self._pk_index(table)]: r for r in datasets[table]}
                     for unique_value, existing_pk in existing:
                         row = next((r for r in datasets[table] if r[field] == unique_value), None)
                         if row and row[self._pk(table)] != existing_pk:
