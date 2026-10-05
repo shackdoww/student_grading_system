@@ -188,7 +188,7 @@ class ClassGradeWindow(ttk.Frame):
         dialog.title("Enter Score")
         dialog.geometry("340x190")
         dialog.resizable(False, False)
-        dialog.transient(self)
+        dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
 
         body = ttk.Frame(dialog, padding=15)
