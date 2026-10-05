@@ -1,13 +1,14 @@
 import tkinter as tk
+import customtkinter as ctk
 from tkinter import messagebox, ttk
 from datetime import date
 
 from app.services.academic_service import AcademicService
 
 
-class AcademicWindow(ttk.Frame):
+class AcademicWindow(ctk.CTkFrame):
     def __init__(self, parent):
-        super().__init__(parent)
+        super().__init__(parent, fg_color="#F6F4FB", corner_radius=0)
 
         self.service = AcademicService()
         self.tabs = ttk.Notebook(self)
@@ -60,7 +61,7 @@ class AcademicWindow(ttk.Frame):
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
 
-        frame = ttk.Frame(dialog, padding=18)
+        frame = ttk.Frame(dialog, padding=22)
         frame.pack(fill="both", expand=True)
         variables = {}
 
