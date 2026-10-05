@@ -6,13 +6,9 @@ from app.services.enrollment_service import EnrollmentService
 from app.services.grading_service import GradingService
 
 
-class ClassRosterWindow(tk.Toplevel):
+class ClassRosterWindow(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("Class / Section View")
-        self.geometry("1000x620")
-        self.minsize(850, 500)
-        self.transient(parent)
 
         self.academic_service = AcademicService()
         self.enrollment_service = EnrollmentService()
@@ -22,8 +18,6 @@ class ClassRosterWindow(tk.Toplevel):
 
         self._build_ui()
         self.refresh_offerings()
-        self.lift()
-        self.focus_force()
 
     def _build_ui(self):
         frame = ttk.Frame(self, padding=18)
