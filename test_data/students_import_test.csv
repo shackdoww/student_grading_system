@@ -1,0 +1,16 @@
+student_id,first_name,last_name,email,program,status
+S101,Alyssa,Reyes,alyssa.reyes101@example.com,BSCS,Active
+S102,Marcus,Santos,marcus.santos102@example.com,BSIT,Active
+S103,Bianca,Navarro,bianca.navarro103@example.com,BSIS,Active
+S104,Ethan,Garcia,ethan.garcia104@example.com,BSEMC,Inactive
+S105,Nicole,Mendoza,nicole.mendoza105@example.com,BSCS,Active
+S106,Daniel,Castillo,daniel.castillo106@example.com,BSIT,Active
+S107,Sofia,Ramos,sofia.ramos107@example.com,BSIS,Active
+S108,Liam,Torres,liam.torres108@example.com,BSEMC,Active
+S109,Camille,Dizon,camille.dizon109@example.com,BSCS,Active
+S110,Noah,Aquino,noah.aquino110@example.com,BSIT,Inactive
+S111,Jasmine,Flores,jasmine.flores111@example.com,BSIS,Active
+S112,Adrian,Cruz,adrian.cruz112@example.com,BSEMC,Active
+S113,Mia,Bautista,mia.bautista113@example.com,BSCS,Active
+S114,Caleb,Rivera,caleb.rivera114@example.com,BSIT,Active
+S115,Trisha,Villanueva,trisha.villanueva115@example.com,BSIS,Active
