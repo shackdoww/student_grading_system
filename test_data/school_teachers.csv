@@ -1,0 +1,9 @@
+teacher_id,first_name,last_name,email,department,status
+T001,Juan,Dela Cruz,juan.delacruz@school.edu,Computer Science,Active
+T002,Maria,Santos,maria.santos@school.edu,Information Technology,Active
+T003,Robert,Reyes,robert.reyes@school.edu,Mathematics,Active
+T004,Angela,Garcia,angela.garcia@school.edu,Computer Science,Active
+T005,Patrick,Mendoza,patrick.mendoza@school.edu,Information Systems,Active
+T006,Lourdes,Navarro,lourdes.navarro@school.edu,Mathematics,Active
+T007,Carlos,Ramos,carlos.ramos@school.edu,Computer Science,Active
+T008,Beatrice,Torres,beatrice.torres@school.edu,Information Technology,Active
