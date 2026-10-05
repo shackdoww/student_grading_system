@@ -201,7 +201,7 @@ class EnrollmentWindow(ttk.Frame):
         dialog.title("Edit Enrollment" if editing else "Add Enrollment")
         dialog.geometry("520x430")
         dialog.resizable(False, False)
-        dialog.transient(self)
+        dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
 
         frame = ttk.Frame(dialog, padding=18)
