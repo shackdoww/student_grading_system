@@ -104,7 +104,7 @@ class StudentGradingGUI(ctk.CTk):
                      font=("Segoe UI", 32, "bold")).pack(anchor="w", padx=22, pady=(24, 0))
         ctk.CTkLabel(sidebar, text="STUDENT HUB", text_color=TEXT,
                      font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=22, pady=(0, 30))
-        ctk.CTkLabel(sidebar, text="MAIN MENU", text_color="#5F6D78",
+        ctk.CTkLabel(sidebar, text="MAIN MENU", text_color=MUTED,
                      font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=22, pady=(0, 8))
 
         self.nav_buttons = {}
@@ -125,11 +125,11 @@ class StudentGradingGUI(ctk.CTk):
             self.nav_buttons[key] = button
 
         ctk.CTkFrame(sidebar, height=1, fg_color=BORDER).pack(fill="x", padx=20, pady=20)
-        ctk.CTkLabel(sidebar, text="SYSTEM", text_color="#5F6D78",
+        ctk.CTkLabel(sidebar, text="SYSTEM", text_color=MUTED,
                      font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=22, pady=(0, 8))
         self._nav(sidebar, "⟳   Refresh Data", self.refresh_students).pack(fill="x", padx=12, pady=3)
         ctk.CTkLabel(sidebar, text="Student Information\nand Grading System",
-                     text_color="#596772", justify="left",
+                     text_color="#AAA2B8", justify="left",
                      font=("Segoe UI", 8)).pack(side="bottom", anchor="w", padx=22, pady=20)
 
         content = ctk.CTkFrame(shell, fg_color=BG, corner_radius=0)
@@ -331,7 +331,7 @@ class StudentGradingGUI(ctk.CTk):
             button.configure(
                 fg_color=ACCENT if active else "transparent",
                 hover_color=HOVER if active else PANEL,
-                text_color=BG if active else TEXT,
+                text_color="#FFFFFF" if active else TEXT,
             )
 
     def open_academic_management(self):
