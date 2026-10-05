@@ -1,5 +1,6 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
+import csv
 
 import customtkinter as ctk
 
@@ -176,11 +177,11 @@ class StudentGradingGUI(ctk.CTk):
         actions = ctk.CTkFrame(left, fg_color="transparent")
         actions.pack(fill="x", padx=10, pady=(0, 12))
         for text, command in [("ADD", self.add_student), ("EDIT", self.edit_student),
-                             ("DELETE", self.delete_student)]:
+                             ("DELETE", self.delete_student), ("IMPORT CSV", self.import_students_csv)]:
             ctk.CTkButton(actions, text=text, command=command, height=34,
                           corner_radius=7, fg_color=PANEL_2, hover_color="#30404C",
-                          font=("Segoe UI", 9, "bold")).pack(side="left", fill="x",
-                                                             expand=True, padx=3)
+                          font=("Segoe UI", 8, "bold")).pack(side="left", fill="x",
+                                                            expand=True, padx=2)
 
         right = self._panel(workspace)
         right.pack(side="left", fill="both", expand=True)
@@ -349,6 +350,162 @@ class StudentGradingGUI(ctk.CTk):
             messagebox.showwarning("No Student Selected", "Select a student first.", parent=self)
             return None
         return self.student_tree.item(selected[0], "values")[0]
+
+    def import_students_csv(self):
+        path = filedialog.askopenfilename(
+            parent=self,
+            title="Import Student CSV",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+
+        required = ["student_id", "first_name", "last_name", "email", "program", "status"]
+        try:
+            with open(path, "r", encoding="utf-8-sig", newline="") as file:
+                reader = csv.DictReader(file)
+                if not reader.fieldnames:
+                    raise ValueError("The CSV file is empty or has no header row.")
+
+                headers = [header.strip() for header in reader.fieldnames]
+                missing = [field for field in required if field not in headers]
+                if missing:
+                    raise ValueError(
+                        "Missing required column(s): " + ", ".join(missing) +
+                        "\n\nRequired columns:\n" + ", ".join(required)
+                    )
+
+                students = []
+                for row in reader:
+                    students.append({
+                        field: (row.get(field) or "").strip()
+                        for field in required
+                    })
+
+            if not students:
+                raise ValueError("The CSV contains a header but no student records.")
+
+            errors = self.student_service.validate_import(students)
+            self._show_import_preview(path, students, errors)
+        except UnicodeDecodeError:
+            messagebox.showerror(
+                "CSV Encoding Error",
+                "The CSV could not be read as UTF-8. Save the file as UTF-8 CSV and try again.",
+                parent=self
+            )
+        except csv.Error as e:
+            messagebox.showerror("CSV Format Error", str(e), parent=self)
+        except Exception as e:
+            messagebox.showerror("Import Error", str(e), parent=self)
+
+    def _show_import_preview(self, path, students, errors):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Import Students - Preview")
+        dialog.geometry("940x590")
+        dialog.minsize(820, 500)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        ctk.CTkLabel(
+            dialog, text="IMPORT STUDENTS", text_color=ACCENT,
+            font=("Segoe UI", 18, "bold")
+        ).pack(anchor="w", padx=24, pady=(20, 2))
+        ctk.CTkLabel(
+            dialog, text=f"File: {path}",
+            text_color=MUTED, font=("Segoe UI", 9)
+        ).pack(anchor="w", padx=24, pady=(0, 10))
+
+        summary = (
+            f"{len(students)} student record(s) found. "
+            + ("Fix the errors below before importing." if errors
+               else "Review the records, then confirm the import.")
+        )
+        summary_var = tk.StringVar(value=summary)
+        ctk.CTkLabel(
+            dialog, textvariable=summary_var, text_color=TEXT,
+            font=("Segoe UI", 10), justify="left"
+        ).pack(anchor="w", padx=24, pady=(0, 8))
+
+        table_frame = ctk.CTkFrame(dialog, fg_color=PANEL_2, corner_radius=8)
+        table_frame.pack(fill="both", expand=True, padx=24, pady=(0, 10))
+
+        columns = ("student_id", "first_name", "last_name", "email", "program", "status")
+        tree = ttk.Treeview(table_frame, columns=columns, show="headings")
+        headings = {
+            "student_id": ("Student ID", 90),
+            "first_name": ("First Name", 105),
+            "last_name": ("Last Name", 105),
+            "email": ("Email", 210),
+            "program": ("Program", 110),
+            "status": ("Status", 90),
+        }
+        for col in columns:
+            title, width = headings[col]
+            tree.heading(col, text=title)
+            tree.column(col, width=width, anchor="w")
+        tree.pack(fill="both", expand=True, padx=2, pady=2)
+
+        for student in students:
+            tree.insert("", "end", values=tuple(student[col] for col in columns))
+
+        error_frame = ctk.CTkFrame(dialog, fg_color=PANEL, corner_radius=8)
+        error_frame.pack(fill="x", padx=24, pady=(0, 10))
+
+        error_text = tk.Text(
+            error_frame, height=5, bg=PANEL, fg=TEXT,
+            insertbackground=TEXT, relief="flat", borderwidth=0,
+            font=("Segoe UI", 9), wrap="word"
+        )
+        error_text.pack(fill="both", expand=True, padx=10, pady=8)
+
+        if errors:
+            error_text.insert("1.0", "IMPORT BLOCKED:\n" + "\n".join("• " + e for e in errors))
+        else:
+            existing_ids = {
+                row[0] for row in self.student_service.get_all()
+            }
+            updates = sum(1 for student in students if student["student_id"] in existing_ids)
+            new_count = len(students) - updates
+            error_text.insert(
+                "1.0",
+                f"Ready to import: {new_count} new student(s), {updates} existing "
+                "student ID(s) will be updated."
+            )
+        error_text.configure(state="disabled")
+
+        buttons = ctk.CTkFrame(dialog, fg_color="transparent")
+        buttons.pack(fill="x", padx=24, pady=(0, 18))
+
+        import_button = ctk.CTkButton(
+            buttons, text="IMPORT STUDENTS", height=38, corner_radius=8,
+            fg_color=ACCENT, hover_color=HOVER, text_color=BG,
+            font=("Segoe UI", 9, "bold")
+        )
+        import_button.pack(side="right", padx=(8, 0))
+        ctk.CTkButton(
+            buttons, text="CANCEL", command=dialog.destroy, height=38,
+            corner_radius=8, fg_color=PANEL_2, hover_color=BORDER,
+            font=("Segoe UI", 9, "bold")
+        ).pack(side="right")
+
+        if errors:
+            import_button.configure(state="disabled")
+        else:
+            def confirm_import():
+                try:
+                    self.student_service.import_students(students)
+                    dialog.destroy()
+                    self.refresh_students()
+                    messagebox.showinfo(
+                        "Import Complete",
+                        f"Successfully imported {len(students)} student record(s).\n"
+                        "Existing Student IDs were updated.",
+                        parent=self
+                    )
+                except Exception as e:
+                    messagebox.showerror("Import Failed", str(e), parent=dialog)
+
+            import_button.configure(command=confirm_import)
 
     def add_student(self): self.open_student_dialog()
 
