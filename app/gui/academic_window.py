@@ -5,13 +5,9 @@ from datetime import date
 from app.services.academic_service import AcademicService
 
 
-class AcademicWindow(tk.Toplevel):
+class AcademicWindow(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("Academic Management")
-        self.geometry("1100x650")
-        self.minsize(950, 550)
-        self.transient(parent)
 
         self.service = AcademicService()
         self.tabs = ttk.Notebook(self)
@@ -61,7 +57,7 @@ class AcademicWindow(tk.Toplevel):
         dialog.title(title)
         dialog.geometry("470x520")
         dialog.resizable(False, False)
-        dialog.transient(self)
+        dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
 
         frame = ttk.Frame(dialog, padding=18)
