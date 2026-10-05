@@ -1,4 +1,5 @@
 import tkinter as tk
+import customtkinter as ctk
 from tkinter import messagebox, ttk
 
 from app.services.academic_service import AcademicService
@@ -6,9 +7,9 @@ from app.services.enrollment_service import EnrollmentService
 from app.services.grading_service import GradingService
 
 
-class ClassRosterWindow(ttk.Frame):
+class ClassRosterWindow(ctk.CTkFrame):
     def __init__(self, parent):
-        super().__init__(parent)
+        super().__init__(parent, fg_color="#F6F4FB", corner_radius=0)
 
         self.academic_service = AcademicService()
         self.enrollment_service = EnrollmentService()
@@ -20,7 +21,7 @@ class ClassRosterWindow(ttk.Frame):
         self.refresh_offerings()
 
     def _build_ui(self):
-        frame = ttk.Frame(self, padding=18)
+        frame = ttk.Frame(self, padding=22)
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text="Class / Section View",
