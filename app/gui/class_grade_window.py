@@ -8,13 +8,9 @@ from app.services.grading_service import GradingService
 from app.services.score_service import ScoreService
 
 
-class ClassGradeWindow(tk.Toplevel):
+class ClassGradeWindow(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("Class Grade Management")
-        self.geometry("980x560")
-        self.minsize(800, 450)
-        self.transient(parent)
 
         self.academic = AcademicService()
         self.enrollments = EnrollmentService()
@@ -26,8 +22,6 @@ class ClassGradeWindow(tk.Toplevel):
         self.roster = []
         self._build_ui()
         self.refresh_offerings()
-        self.lift()
-        self.focus_force()
 
     def _build_ui(self):
         frame = ttk.Frame(self, padding=12)
