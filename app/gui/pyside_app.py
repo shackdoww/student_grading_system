@@ -2,16 +2,18 @@ from datetime import date
 import os
 import sys
 
-from PySide6.QtCore import Qt, QSize, QDate, QByteArray
-from PySide6.QtGui import QColor, QFont, QIcon, QPixmap, QPainter, QPen
+from PySide6.QtCore import Qt, QSize, QByteArray
+from PySide6.QtGui import QColor, QIcon, QPixmap, QPainter
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QLabel, QPushButton,
     QToolButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QComboBox,
     QDialog, QDialogButtonBox, QFormLayout, QMessageBox, QFileDialog,
-    QScrollArea, QDateEdit, QTabWidget, QAbstractItemView, QProgressBar
+    QScrollArea, QTabWidget, QAbstractItemView, QSizePolicy
 )
+
+from app.gui.table_output import export_table, print_table
 
 from app.repositories.class_offering_repository import ClassOfferingRepository
 from app.repositories.enrollment_repository import EnrollmentRepository
@@ -27,25 +29,25 @@ from app.services.score_service import ScoreService
 from app.services.student_service import StudentService
 
 
-BG = "#F7F5FC"
+BG = "#F5F7FA"
 SURFACE = "#FFFFFF"
-SURFACE_2 = "#F1EDFA"
-SURFACE_3 = "#EAE4F7"
-TEXT = "#29263A"
-MUTED = "#827B96"
-PURPLE = "#7657E8"
-PURPLE_HOVER = "#6849D5"
-PURPLE_SOFT = "#E7E0FF"
-MINT = "#DDF7EC"
-MINT_TEXT = "#27845D"
-BLUE = "#DDEEFF"
-BLUE_TEXT = "#3977A9"
-PEACH = "#FFE5DE"
-PEACH_TEXT = "#B95F4D"
-YELLOW = "#FFF1C9"
-YELLOW_TEXT = "#9A721A"
-BORDER = "#E4DEEF"
-DANGER = "#D85C67"
+SURFACE_2 = "#F8FAFC"
+SURFACE_3 = "#EEF2F7"
+TEXT = "#172033"
+MUTED = "#64748B"
+PURPLE = "#3158D4"
+PURPLE_HOVER = "#2448BB"
+PURPLE_SOFT = "#E9EEFF"
+MINT = "#DCF4EA"
+MINT_TEXT = "#16785A"
+BLUE = "#E5EFFF"
+BLUE_TEXT = "#3158D4"
+PEACH = "#FFF0E8"
+PEACH_TEXT = "#B45309"
+YELLOW = "#FFF7D6"
+YELLOW_TEXT = "#9A6700"
+BORDER = "#E2E8F0"
+DANGER = "#C2414B"
 
 
 ICON_DIR = os.path.join(os.path.dirname(__file__), "assets", "icons")
@@ -96,10 +98,15 @@ class StatCard(Card):
         layout.setContentsMargins(20, 17, 20, 17)
         layout.setSpacing(4)
         top = QHBoxLayout()
-        title = QLabel(label.upper())
+        title = QLabel(label)
+        self.setObjectName("statCard")
+        self.setStyleSheet(f"QFrame#statCard {{ background: {accent}; border: 0; }} "
+                           "QFrame#statCard QLabel { color: white; background: transparent; }")
         title.setObjectName("eyebrow")
-        dot = QLabel("●")
-        dot.setStyleSheet(f"color:{accent};font-size:11px;")
+        dot = QLabel()
+        icon_name = {"Students": "users-round.svg", "Enrollments": "file-text.svg",
+                     "Teachers": "graduation-cap.svg", "Class Offerings": "book-open.svg"}.get(label, "chart.svg")
+        dot.setPixmap(sidebar_icon(icon_name, "#FFFFFF", 28).pixmap(28, 28))
         top.addWidget(title)
         top.addStretch()
         top.addWidget(dot)
@@ -112,10 +119,36 @@ class StatCard(Card):
         self.value.setText(str(value))
 
 
+class PageHeader(QWidget):
+    """Shared title treatment for every workspace page."""
+    def __init__(self, title, subtitle, action=None, parent=None):
+        super().__init__(parent)
+        self.setObjectName("pageHeader")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+        copy = QVBoxLayout()
+        copy.setSpacing(3)
+        heading = QLabel(title)
+        heading.setObjectName("pageTitle")
+        copy.addWidget(heading)
+        description = QLabel(subtitle)
+        description.setObjectName("subtitle")
+        description.setWordWrap(True)
+        copy.addWidget(description)
+        layout.addLayout(copy, 1)
+        if action:
+            layout.addWidget(action, 0, Qt.AlignTop)
+
+
 def table(columns, rows=0):
     t = QTableWidget(rows, len(columns))
     t.setHorizontalHeaderLabels(columns)
-    t.setAlternatingRowColors(False)
+    t.setAlternatingRowColors(True)
+    t.verticalHeader().setDefaultSectionSize(44)
+    t.horizontalHeader().setMinimumSectionSize(90)
+    t.horizontalHeader().setMaximumSectionSize(260)
+    t.setMinimumHeight(160)
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
     t.setSelectionMode(QAbstractItemView.SingleSelection)
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -134,7 +167,8 @@ def fill_table(t, rows):
             item = QTableWidgetItem("" if value is None else str(value))
             item.setData(Qt.UserRole, value)
             t.setItem(r, c, item)
-    t.resizeRowsToContents()
+    for row in range(t.rowCount()):
+        t.setRowHeight(row, 44)
 
 
 class StudentDialog(QDialog):
@@ -204,25 +238,36 @@ class DashboardPage(QWidget):
         root.setContentsMargins(28, 24, 28, 26)
         root.setSpacing(18)
 
-        header = QHBoxLayout()
-        title = QVBoxLayout()
-        h = QLabel("Good day")
-        h.setObjectName("pageTitle")
-        sub = QLabel("A calm overview of your school data and student performance.")
-        sub.setObjectName("subtitle")
-        title.addWidget(h)
-        title.addWidget(sub)
-        header.addLayout(title)
-        header.addStretch()
-        header.addWidget(button("＋  Add Student", self.add_student, True))
-        root.addLayout(header)
+        root.addWidget(PageHeader("Dashboard", "School activity and student performance at a glance.",
+                                  button("Add student", self.add_student, True)))
+
+        overview = QFrame()
+        overview.setObjectName("dashboardOverview")
+        ol = QHBoxLayout(overview)
+        ol.setContentsMargins(24, 18, 24, 18)
+        copy = QVBoxLayout()
+        copy.setSpacing(4)
+        kicker = QLabel("ACADEMIC OVERVIEW")
+        kicker.setObjectName("overviewKicker")
+        copy.addWidget(kicker)
+        headline = QLabel("A focused view of school activity and student progress.")
+        headline.setObjectName("overviewTitle")
+        headline.setWordWrap(True)
+        copy.addWidget(headline)
+        self.overview_detail = QLabel("Loading current records from PostgreSQL.")
+        self.overview_detail.setObjectName("overviewDetail")
+        copy.addWidget(self.overview_detail)
+        ol.addLayout(copy, 1)
+        overview_action = button("Review class grades", lambda: self.app.show_page("grades"), True)
+        ol.addWidget(overview_action, 0, Qt.AlignVCenter)
+        root.addWidget(overview)
 
         stats = QGridLayout()
         stats.setSpacing(14)
         self.students_stat = StatCard("Students", "0", PURPLE)
-        self.enrollments_stat = StatCard("Enrollments", "0", "#5B9EE8")
-        self.teachers_stat = StatCard("Teachers", "0", "#55BE8C")
-        self.classes_stat = StatCard("Class Offerings", "0", "#F2B94B")
+        self.enrollments_stat = StatCard("Enrollments", "0", "#1593CB")
+        self.teachers_stat = StatCard("Teachers", "0", "#36A77C")
+        self.classes_stat = StatCard("Class Offerings", "0", "#8870C7")
         for i, card in enumerate([self.students_stat, self.enrollments_stat, self.teachers_stat, self.classes_stat]):
             stats.addWidget(card, 0, i)
         root.addLayout(stats)
@@ -244,7 +289,7 @@ class DashboardPage(QWidget):
         sl.addLayout(sh)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search name, ID, program…")
-        self.search.textChanged.connect(self.refresh)
+        self.search.textChanged.connect(self.filter_students)
         sl.addWidget(self.search)
         self.student_table = table(["ID", "Name", "Program", "Status"])
         self.student_table.itemSelectionChanged.connect(self.student_selected)
@@ -288,17 +333,34 @@ class DashboardPage(QWidget):
     def refresh(self):
         try:
             students = self.app.student_service.get_all()
-            q = self.search.text().lower().strip()
-            filtered = [s for s in students if not q or q in " ".join(map(str, s)).lower()]
-            fill_table(self.student_table, [(s[0], f"{s[1]} {s[2]}", s[4], s[5]) for s in filtered])
+            self._students = students
+            self.filter_students()
             self.students_stat.setValue(len(students))
             self.enrollments_stat.setValue(self.app.enrollment_repo_count())
             self.teachers_stat.setValue(len(self.app.teacher_repo.find_all()))
-            self.classes_stat.setValue(len(self.app.offering_repo.find_all()))
+            offerings = self.app.offering_repo.find_all()
+            self.classes_stat.setValue(len(offerings))
+            self.overview_detail.setText(
+                f"{len(students)} students across {len(offerings)} class offering(s)."
+            )
             if self.student_table.rowCount() and not self.student_table.selectedItems():
                 self.student_table.selectRow(0)
         except Exception as e:
             self.app.error(str(e))
+
+    def filter_students(self):
+        query = self.search.text().casefold().strip()
+        students = [s for s in getattr(self, "_students", [])
+                    if not query or query in " ".join(map(str, s)).casefold()]
+        fill_table(self.student_table, [(s[0], f"{s[1]} {s[2]}", s[4], s[5]) for s in students])
+        if students:
+            self.student_table.selectRow(0)
+        else:
+            self.selected_student = None
+            self.selected_name.setText("No student selected")
+            self.selected_info.setText("Add a student or adjust your search.")
+            self.grade_label.setText("—")
+            self.enrollment_label.setText("No enrollments selected")
 
     def student_selected(self):
         rows = self.student_table.selectedItems()
@@ -339,6 +401,8 @@ class DashboardPage(QWidget):
             self.app.warning("Select a student first.")
             return
         self.app.show_page("reports")
+        index = self.app.reports.student.findData(self.selected_student)
+        self.app.reports.student.setCurrentIndex(index)
         self.app.reports.load_student(self.selected_student)
 
 
@@ -349,14 +413,7 @@ class AcademicPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 24, 28, 26)
         root.setSpacing(18)
-        header = QHBoxLayout()
-        box = QVBoxLayout()
-        box.addWidget(styled_label("Academic", "pageTitle"))
-        box.addWidget(styled_label("Teachers, subjects, grading periods and class offerings.", "subtitle"))
-        header.addLayout(box)
-        header.addStretch()
-        header.addWidget(button("↻ Refresh", self.refresh))
-        root.addLayout(header)
+        root.addWidget(PageHeader("Academic", "Teachers, subjects, grading periods and class offerings.", button("Refresh", self.refresh)))
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         root.addWidget(self.tabs, 1)
@@ -394,14 +451,7 @@ class EnrollmentsPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 24, 28, 26)
         root.setSpacing(18)
-        header = QHBoxLayout()
-        box = QVBoxLayout()
-        box.addWidget(styled_label("Enrollments", "pageTitle"))
-        box.addWidget(styled_label("Connect students to class offerings without leaving the workspace.", "subtitle"))
-        header.addLayout(box)
-        header.addStretch()
-        header.addWidget(button("↻ Refresh", self.refresh))
-        root.addLayout(header)
+        root.addWidget(PageHeader("Enrollments", "Connect students to class offerings without leaving the workspace.", button("Refresh", self.refresh)))
 
         editor = Card()
         form = QGridLayout(editor)
@@ -414,15 +464,17 @@ class EnrollmentsPage(QWidget):
         self.offering = QComboBox()
         form.addWidget(self.student, 1, 0)
         form.addWidget(self.offering, 1, 1)
-        form.addWidget(styled_label("ENROLLMENT ID", "eyebrow"), 0, 2)
-        form.addWidget(styled_label("STATUS", "eyebrow"), 0, 3)
+        form.addWidget(styled_label("ENROLLMENT ID", "eyebrow"), 2, 0)
+        form.addWidget(styled_label("STATUS", "eyebrow"), 2, 1)
         self.enrollment_id = QLineEdit()
         self.status = QComboBox()
         self.status.addItems(["Active", "Dropped", "Completed"])
-        form.addWidget(self.enrollment_id, 1, 2)
-        form.addWidget(self.status, 1, 3)
+        form.addWidget(self.enrollment_id, 3, 0)
+        form.addWidget(self.status, 3, 1)
         save = button("Enroll Student", self.save, True)
-        form.addWidget(save, 1, 4)
+        form.addWidget(save, 4, 1, Qt.AlignRight)
+        form.setColumnStretch(0, 1)
+        form.setColumnStretch(1, 1)
         root.addWidget(editor)
 
         card = Card()
@@ -506,17 +558,26 @@ class GradesPage(QWidget):
         root.addWidget(card, 1)
         self.refresh_offerings()
 
+    def refresh(self):
+        self.refresh_offerings()
+
     def refresh_offerings(self):
         try:
             self.offering.blockSignals(True)
             self.offering.clear()
             for o in self.app.offering_repo.find_all():
                 self.offering.addItem(f"{o[11]} · {o[12]} · {o[3]} · {o[5]}", o[0])
-            self.offering.blockSignals(False)
             if self.offering.count():
                 self.load_class()
+            else:
+                self.current_offering = None
+                fill_table(self.roster, [])
+                self.count.setValue(0)
+                self.average.setValue("—")
         except Exception as e:
             self.app.error(str(e))
+        finally:
+            self.offering.blockSignals(False)
 
     def load_class(self):
         oid = self.offering.currentData()
@@ -682,11 +743,14 @@ class ReportsPage(QWidget):
         for s in students:
             self.student.addItem(f"{s[0]} · {s[1]} {s[2]}", s[0])
         self.student.blockSignals(False)
-        if self.student.count():
-            self.load_student(self.student.currentData())
+        self.load_student(self.student.currentData())
 
     def load_student(self, sid):
         if not sid:
+            self.name.setText("Select a student")
+            self.info.clear()
+            self.summary.setText("No grades available")
+            fill_table(self.list, [])
             return
         try:
             s = self.app.student_service.get(sid)
@@ -824,56 +888,12 @@ class ImportPage(QWidget):
 
 
 
-class PatternBackground(QWidget):
-    """Soft decorative background that adds depth without competing with the data."""
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QColor(BG))
-
-        for x, y, size, color, alpha in [
-            (-90, -70, 260, PURPLE, 24),
-            (self.width() - 180, 35, 220, "#7BC7B1", 20),
-            (self.width() - 120, self.height() - 170, 250, "#F0B45B", 18),
-        ]:
-            c = QColor(color)
-            c.setAlpha(alpha)
-            painter.setBrush(c)
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(x, y, size, size)
-
-        dot = QColor(PURPLE)
-        dot.setAlpha(42)
-        painter.setBrush(dot)
-        painter.setPen(Qt.NoPen)
-        for row in range(5):
-            for col in range(7):
-                painter.drawEllipse(28 + col * 13, 30 + row * 13, 3, 3)
-
-        pen = QPen(QColor(PURPLE))
-        arc_color = QColor(PURPLE)
-        arc_color.setAlpha(35)
-        pen.setColor(arc_color)
-        pen.setWidth(2)
-        painter.setPen(pen)
-        painter.setBrush(Qt.NoBrush)
-        painter.drawArc(
-            self.width() - 210,
-            self.height() - 130,
-            180,
-            110,
-            20 * 16,
-            120 * 16,
-        )
-painter.end()
-
-
 class StudentHub(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Student Hub · Information & Grading")
         self.resize(1440, 900)
-        self.setMinimumSize(1180, 720)
+        self.setMinimumSize(1000, 650)
 
         self.student_service = StudentService()
         self.enrollment_service = EnrollmentService()
@@ -895,18 +915,19 @@ class StudentHub(QMainWindow):
         central.setObjectName("window")
         self.setCentralWidget(central)
         shell = QHBoxLayout(central)
-        shell.setContentsMargins(14, 14, 14, 14)
-        shell.setSpacing(14)
+        shell.setContentsMargins(0, 0, 0, 0)
+        shell.setSpacing(0)
 
         nav = QFrame()
         nav.setObjectName("sidebar")
-        nav.setFixedWidth(224)
+        nav.setFixedWidth(210)
         nl = QVBoxLayout(nav)
-        nl.setContentsMargins(14, 18, 14, 16)
+        nl.setContentsMargins(18, 22, 18, 18)
         nl.setSpacing(6)
 
         brand = QLabel("S")
         brand.setObjectName("brandMark")
+        brand.setText("SH")
         nl.addWidget(brand)
         brand_title = QLabel("STUDENT HUB")
         brand_title.setObjectName("brandTitle")
@@ -925,12 +946,16 @@ class StudentHub(QMainWindow):
             ("import", "Data Import", "upload.svg"),
         ]
         for key, text, icon_name in items:
+            if key in ("academic", "import"):
+                nl.addSpacing(14)
+                nl.addWidget(styled_label("ACADEMIC RECORDS" if key == "academic" else "DATA TOOLS", "eyebrow"))
             b = QToolButton()
             b.setText(text)
             b.setIcon(sidebar_icon(icon_name, MUTED))
             b.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
             b.setIconSize(QSize(21, 21))
             b.setCheckable(True)
+            b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             b.setProperty("icon_name", icon_name)
             b.clicked.connect(lambda checked=False, k=key: self.show_page(k))
             nl.addWidget(b)
@@ -943,7 +968,7 @@ class StudentHub(QMainWindow):
         il.setContentsMargins(14, 12, 14, 12)
         il.setSpacing(5)
         il.addWidget(styled_label("YOUR WORKSPACE", "identityEyebrow"))
-        identity_title = QLabel("Everything in one place")
+        identity_title = QLabel("School workspace")
         identity_title.setObjectName("identityTitle")
         identity_title.setWordWrap(True)
         il.addWidget(identity_title)
@@ -953,20 +978,34 @@ class StudentHub(QMainWindow):
         nl.addWidget(identity)
 
         nl.addSpacing(10)
-        nl.addWidget(styled_label("POSTGRESQL SCHOOL SYSTEM", "sidebarFoot"))
-        nl.addWidget(styled_label("Desktop workspace · PySide6", "sidebarFoot"))
+
+
         shell.addWidget(nav)
 
         content = QFrame()
         content.setObjectName("content")
-        cl = QGridLayout(content)
-        cl.setContentsMargins(4, 2, 4, 2)
-        self.pattern = PatternBackground()
+        cl = QVBoxLayout(content)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(0)
+        topbar = QFrame()
+        topbar.setObjectName("topbar")
+        tl = QHBoxLayout(topbar)
+        tl.setContentsMargins(30, 0, 32, 0)
+        tl.addWidget(styled_label("SCHOOL MANAGEMENT", "topbarContext"))
+        tl.addStretch()
+        current_date = QLabel(date.today().strftime("%A, %d %B %Y"))
+        current_date.setObjectName("topbarDate")
+        current_date.setVisible(False)
+        tl.addWidget(current_date)
+        self.output_table = QComboBox()
+        self.output_table.setMinimumWidth(140)
+        tl.addWidget(self.output_table)
+        tl.addWidget(button("Export CSV", self.export_current, compact=True))
+        tl.addWidget(button("Print", self.print_current, compact=True))
+        cl.addWidget(topbar)
         self.stack = QStackedWidget()
         self.stack.setObjectName("pageStack")
-        self.stack.setAttribute(Qt.WA_TranslucentBackground)
-        cl.addWidget(self.pattern, 0, 0)
-        cl.addWidget(self.stack, 0, 0)
+        cl.addWidget(self.stack, 1)
         shell.addWidget(content, 1)
 
         self.pages = {}
@@ -982,18 +1021,35 @@ class StudentHub(QMainWindow):
             ("academic", self.academic), ("enrollments", self.enrollments),
             ("roster", self.roster), ("import", self.import_page)
         ]:
-            page.setAttribute(Qt.WA_TranslucentBackground)
+            page.setObjectName("workspacePage")
+            names = {"student_table": "Students", "teacher_table": "Teachers",
+                     "subject_table": "Subjects", "period_table": "Grading periods",
+                     "offering_table": "Class offerings", "roster": "Class roster",
+                     "list": "Student report" if key == "reports" else "Enrollments"}
+            for attribute, name in names.items():
+                widget = getattr(page, attribute, None)
+                if isinstance(widget, QTableWidget):
+                    widget.setProperty("outputTitle", name)
+            for combo in page.findChildren(QComboBox):
+                combo.setMinimumContentsLength(12)
+                combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
             self.pages[key] = page
-            self.stack.addWidget(page)
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.NoFrame)
+            scroll.setWidget(page)
+            self.stack.addWidget(scroll)
         self.show_page("dashboard")
 
     def show_page(self, key):
-        self.stack.setCurrentWidget(self.pages[key])
+        self.stack.setCurrentIndex(list(self.pages).index(key))
+        self.current_page = key
+        self.update_output_tables()
         for k, b in self.nav_buttons.items():
             active = k == key
             b.setChecked(active)
             icon_name = b.property("icon_name")
-            b.setIcon(sidebar_icon(icon_name, "#FFFFFF" if active else MUTED))
+            b.setIcon(sidebar_icon(icon_name, PURPLE if active else MUTED))
         page = self.pages[key]
         refresh = getattr(page, "refresh", None)
         if callable(refresh):
@@ -1002,14 +1058,37 @@ class StudentHub(QMainWindow):
             except Exception as e:
                 self.error(str(e))
 
+    def update_output_tables(self):
+        self.output_table.clear()
+        page = self.pages[self.current_page]
+        for widget in page.findChildren(QTableWidget):
+            name = widget.property("outputTitle") or "Records"
+            self.output_table.addItem(name, widget)
+        enabled = self.output_table.count() > 0
+        self.output_table.setEnabled(enabled)
+
+    def export_current(self):
+        widget = self.output_table.currentData()
+        if widget is not None:
+            export_table(self, widget, self.output_table.currentText())
+        else:
+            self.warning("This page has no table to export.")
+
+    def print_current(self):
+        widget = self.output_table.currentData()
+        if widget is not None:
+            print_table(self, widget, self.output_table.currentText())
+        else:
+            self.warning("This page has no table to print.")
+
     def refresh_all(self):
         for page in self.pages.values():
             refresh = getattr(page, "refresh", None)
             if callable(refresh):
                 try:
                     refresh()
-                except Exception:
-                    pass
+                except Exception as error:
+                    self.error(str(error))
 
     def enrollment_repo_count(self):
         try:
@@ -1029,203 +1108,56 @@ class StudentHub(QMainWindow):
 
 
 STYLE = f"""
-QWidget#window, QWidget {{
-    background: {BG};
-    color: {TEXT};
-    font-family: "Segoe UI";
-    font-size: 13px;
-}}
-QFrame#sidebar {{
-    background: {SURFACE};
-    border: 1px solid {BORDER};
-    border-radius: 24px;
-}}
-QFrame#content {{
-    background: transparent;
-}}
-QStackedWidget#pageStack {{
-    background: transparent;
-    border: 0;
-}}
-QLabel#brandMark {{
-    background: {PURPLE_SOFT};
-    color: {PURPLE};
-    border-radius: 20px;
-    min-width: 46px;
-    max-width: 46px;
-    min-height: 46px;
-    max-height: 46px;
-    padding: 0;
-    font-size: 24px;
-    font-weight: 800;
-    qproperty-alignment: AlignCenter;
-}}
-QLabel#brandTitle {{
-    color: {TEXT};
-    font-size: 13px;
-    font-weight: 800;
-    padding-left: 2px;
-}}
-QLabel#pageTitle {{
-    color: {TEXT};
-    font-size: 30px;
-    font-weight: 800;
-}}
-QLabel#subtitle {{
-    color: {MUTED};
-    font-size: 13px;
-}}
-QLabel#eyebrow {{
-    color: {MUTED};
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 1px;
-}}
-QLabel#cardTitle {{
-    color: {TEXT};
-    font-size: 16px;
-    font-weight: 750;
-}}
-QLabel#statValue {{
-    color: {TEXT};
-    font-size: 28px;
-    font-weight: 800;
-}}
-QLabel#heroGrade {{
-    color: {PURPLE};
-    font-size: 30px;
-    font-weight: 850;
-    padding-top: 6px;
-}}
-QLabel#sidebarFoot {{
-    color: {MUTED};
-    font-size: 10px;
-}}
-QFrame#sidebarIdentity {{
-    background: {PURPLE_SOFT};
-    border: 1px solid #DDD3FF;
-    border-radius: 18px;
-}}
-QLabel#identityEyebrow {{
-    color: {PURPLE};
-    font-size: 9px;
-    font-weight: 850;
-    letter-spacing: 1px;
-}}
-QLabel#identityTitle {{
-    color: {TEXT};
-    font-size: 13px;
-    font-weight: 800;
-}}
-QLabel#identityMeta {{
-    color: {MUTED};
-    font-size: 10px;
-}}
-QFrame#card {{
-    background: {SURFACE};
-    border: 1px solid {BORDER};
-    border-radius: 22px;
-}}
-QFrame#card[accent="mint"] {{
-    background: {MINT};
-    border-color: {MINT};
-}}
-QToolButton {{
-    background: transparent;
-    color: {MUTED};
-    border: 0;
-    border-radius: 14px;
-    text-align: left;
-    padding: 11px 13px;
-    font-size: 13px;
-    font-weight: 650;
-    spacing: 10px;
-}}
-QToolButton:hover {{
-    background: {SURFACE_2};
-    color: {TEXT};
-}}
-QToolButton:checked {{
-    background: {PURPLE};
-    color: white;
-    padding-left: 14px;
-}}
-QPushButton {{
-    background: {SURFACE_2};
-    color: {TEXT};
-    border: 0;
-    border-radius: 12px;
-    padding: 10px 16px;
-    min-height: 18px;
-    font-weight: 700;
-}}
-QPushButton:hover {{
-    background: {SURFACE_3};
-}}
-QPushButton[primary="true"] {{
-    background: {PURPLE};
-    color: white;
-}}
-QPushButton[primary="true"]:hover {{
-    background: {PURPLE_HOVER};
-}}
-QPushButton[compact="true"] {{
-    padding: 6px 10px;
-}}
-QLineEdit, QComboBox, QDateEdit {{
-    background: {SURFACE_2};
-    color: {TEXT};
-    border: 1px solid transparent;
-    border-radius: 11px;
-    padding: 9px 11px;
-    min-height: 18px;
-}}
-QLineEdit:focus, QComboBox:focus, QDateEdit:focus {{
-    border: 1px solid {PURPLE};
-    background: white;
-}}
-QTableWidget {{
-    background: {SURFACE};
-    border: 0;
-    border-radius: 14px;
-    alternate-background-color: {BG};
-    selection-background-color: {PURPLE_SOFT};
-    selection-color: {TEXT};
-    gridline-color: transparent;
-    outline: 0;
-}}
-QHeaderView::section {{
-    background: {SURFACE_2};
-    color: {MUTED};
-    border: 0;
-    padding: 10px 8px;
-    font-size: 10px;
-    font-weight: 800;
-}}
-QTableWidget::item {{
-    padding: 8px;
-    border-bottom: 1px solid {BORDER};
-}}
-QTabWidget::pane {{
-    border: 0;
-    background: transparent;
-}}
-QTabBar::tab {{
-    background: {SURFACE_2};
-    color: {MUTED};
-    border: 0;
-    border-radius: 11px;
-    padding: 10px 16px;
-    margin-right: 5px;
-    font-weight: 700;
-}}
-QTabBar::tab:selected {{
-    background: {PURPLE};
-    color: white;
-}}
-QMessageBox, QDialog {{
-    background: {SURFACE};
-}}
+QWidget {{ color: {TEXT}; font-family: "Segoe UI"; font-size: 13px; }}
+QWidget#window, QWidget#workspacePage, QStackedWidget, QScrollArea {{ background: {BG}; }}
+QLabel {{ background: transparent; }}
+QFrame#sidebar {{ background: white; border: 0; border-radius: 0; }}
+QFrame#content {{ background: {BG}; border: 0; }}
+QFrame#topbar {{ background: {SURFACE}; border-bottom: 1px solid {BORDER}; min-height: 64px; max-height: 64px; }}
+QLabel#topbarContext, QLabel#brandMeta {{ color: #93A4C3; font-size: 10px; font-weight: 700; letter-spacing: 1px; }}
+QLabel#topbarContext {{ color: {MUTED}; }}
+QLabel#topbarDate {{ color: {MUTED}; font-size: 12px; }}
+QLabel#brandMark {{ background: {PURPLE}; color: white; border-radius: 10px; min-width: 40px; max-width: 40px; min-height: 40px; max-height: 40px; font-size: 12px; font-weight: 800; qproperty-alignment: AlignCenter; }}
+QLabel#brandTitle {{ color: {TEXT}; font-size: 16px; font-weight: 750; padding: 0; }}
+QLabel#pageTitle {{ color: {TEXT}; font-size: 27px; font-weight: 750; }}
+QLabel#subtitle {{ color: {MUTED}; font-size: 13px; }}
+QLabel#eyebrow {{ color: {MUTED}; font-size: 10px; font-weight: 750; letter-spacing: 1px; padding: 0; }}
+QLabel#cardTitle, QLabel#sectionTitle {{ color: {TEXT}; font-size: 16px; font-weight: 750; }}
+QLabel#statValue {{ color: {TEXT}; font-size: 28px; font-weight: 750; }}
+QLabel#heroGrade {{ color: {PURPLE}; font-size: 30px; font-weight: 800; padding-top: 4px; }}
+QLabel#sidebarFoot {{ color: #7182A2; font-size: 10px; }}
+QFrame#sidebarIdentity {{ background: {SURFACE_2}; border: 1px solid {BORDER}; border-radius: 10px; }}
+QLabel#identityEyebrow {{ color: #93A4C3; font-size: 9px; font-weight: 800; letter-spacing: 1px; }}
+QLabel#identityTitle {{ color: {TEXT}; font-size: 13px; font-weight: 700; }}
+QLabel#identityMeta {{ color: {MUTED}; font-size: 10px; }}
+QFrame#card, QFrame#sectionCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; }}
+QFrame#statCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; min-height: 112px; }}
+QFrame#dashboardOverview {{ background: #1C3D90; border: 0; border-radius: 12px; }}
+QLabel#overviewKicker {{ color: #BFD0FF; font-size: 10px; font-weight: 800; letter-spacing: 1px; }}
+QLabel#overviewTitle {{ color: white; font-size: 21px; font-weight: 700; }}
+QLabel#overviewDetail {{ color: #DCE6FF; font-size: 12px; }}
+QToolButton {{ background: transparent; color: {MUTED}; border: 0; border-radius: 8px; text-align: left; padding: 10px 11px; font-size: 13px; font-weight: 600; spacing: 10px; }}
+QToolButton:hover {{ background: {SURFACE_3}; color: {TEXT}; }}
+QToolButton:checked {{ background: {PURPLE_SOFT}; color: {PURPLE}; }}
+QPushButton {{ background: {SURFACE_3}; color: {TEXT}; border: 1px solid {BORDER}; border-radius: 8px; padding: 8px 13px; min-height: 18px; font-weight: 650; }}
+QPushButton:hover {{ background: #E1E9FA; border-color: #C7D3EE; }}
+QPushButton[primary="true"] {{ background: {PURPLE}; color: white; border-color: {PURPLE}; }}
+QPushButton[primary="true"]:hover {{ background: {PURPLE_HOVER}; }}
+QPushButton[compact="true"] {{ padding: 6px 9px; }}
+QLineEdit, QComboBox, QDateEdit {{ background: {SURFACE}; color: {TEXT}; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 10px; min-height: 18px; }}
+QLineEdit:focus, QComboBox:focus, QDateEdit:focus {{ border: 1px solid {PURPLE}; background: white; }}
+QTableWidget {{ background: {SURFACE}; border: 0; border-radius: 8px; alternate-background-color: #F8FAFC; selection-background-color: {PURPLE_SOFT}; selection-color: {TEXT}; gridline-color: transparent; outline: 0; }}
+QHeaderView::section {{ background: #F8FAFC; color: {MUTED}; border: 0; border-bottom: 1px solid {BORDER}; padding: 11px 10px; font-size: 10px; font-weight: 800; }}
+QTableWidget::item {{ padding: 10px; border-bottom: 1px solid #EEF2F6; }}
+QTableWidget::item:hover {{ background: #F5F8FF; }}
+QTabWidget::pane {{ border: 1px solid {BORDER}; border-radius: 10px; background: {SURFACE}; top: -1px; }}
+QTabBar::tab {{ background: transparent; color: {MUTED}; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; margin-right: 5px; font-weight: 700; }}
+QTabBar::tab:selected {{ color: {PURPLE}; border-bottom-color: {PURPLE}; background: transparent; }}
+QDialog {{ background: {SURFACE}; }}
+QScrollBar:vertical {{ background: {SURFACE_3}; width: 10px; border: 0; }}
+QScrollBar::handle:vertical {{ background: #B8C5D6; border-radius: 4px; min-height: 30px; }}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+QDialogButtonBox QPushButton {{ min-width: 88px; }}
 """
 
 def run():
