@@ -9,7 +9,8 @@ from app.database.connection import get_connection
 
 
 TABLES = ('students', 'teachers', 'subjects', 'grading_periods', 'class_offerings',
-          'enrollments', 'grade_percentages', 'grade_components', 'grade_component_scores', 'grades')
+          'enrollments', 'grade_percentages', 'grade_components', 'grade_component_scores', 'grades',
+          'grading_policies', 'period_category_weights', 'period_grade_results')
 
 
 def load_snapshot():
@@ -30,6 +31,26 @@ def values(row, fields):
 
 
 class DataSnapshot:
+    def period_result_status(self, enrollment_id, result):
+        saved = next((r for r in self._records['period_grade_results'] if r['enrollment_id'] == enrollment_id), None)
+        if not saved:
+            return 'Current calculation · not saved'
+        if all(float(saved[key + '_grade']) == result[key] for key in ['midterm', 'final', 'overall']):
+            return 'Saved results match current calculation'
+        return 'Saved results outdated · save period grades again'
+
+    def period_result(self, enrollment_id):
+        from app.calculator.period_calculator import PeriodCalculator
+        records = self._records
+        enrollment = next(r for r in records['enrollments'] if r['enrollment_id'] == enrollment_id)
+        oid = enrollment['offering_id']
+        policy = next((r for r in records['grading_policies'] if r['offering_id'] == oid), None)
+        weights = [r for r in records['period_category_weights'] if r['offering_id'] == oid]
+        ids = {r['percentage_id'] for r in records['grade_percentages'] if r['offering_id'] == oid}
+        components = [r for r in records['grade_components'] if r['percentage_id'] in ids]
+        scores = [r for r in records['grade_component_scores'] if r['enrollment_id'] == enrollment_id]
+        return PeriodCalculator().calculate(policy, weights, components, scores)
+
     def records(self):
         """Detached values for editors; callers cannot mutate the cached snapshot."""
         return {name: [dict(row) for row in rows] for name, rows in self._records.items()}

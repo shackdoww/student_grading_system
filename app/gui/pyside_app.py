@@ -26,6 +26,8 @@ from app.services.score_service import ScoreService
 from app.services.student_service import StudentService
 from app.services.academic_service import AcademicService
 from app.gui.academic_editor import add_editor_actions
+from app.gui.period_grading_dialog import PeriodPolicyDialog
+from app.services.period_grading_service import PeriodGradingService
 
 
 BG = "#F5F7FA"
@@ -549,11 +551,23 @@ class GradesPage(QWidget):
         actions.addWidget(styled_label("Roster & grades", "cardTitle"))
         actions.addStretch()
         actions.addWidget(button("Record Score", self.record_score, True))
-        actions.addWidget(button("Save Grade", self.save_grade))
+        actions.addWidget(button("Save Legacy Grade", self.save_grade))
+        actions.addWidget(button("Period Setup", self.configure_periods))
+        actions.addWidget(button("Save Period Grades", self.save_period_grades))
         l.addLayout(actions)
         self.roster = table(["Enrollment", "Student", "Program", "Status", "Final Grade"])
+        self.roster.setHorizontalHeaderLabels(['Enrollment', 'Student', 'Program', 'Status', 'Legacy Grade'])
+        self.roster.setProperty('outputTitle', 'Legacy roster')
         l.addWidget(self.roster)
         root.addWidget(card, 1)
+        self.grade_sheet = table(['Enrollment', 'Student', 'Midterm', 'Final', 'Overall', 'Readiness'])
+        self.grade_sheet.setProperty('outputTitle', 'Period grade sheet')
+        sheet_card = Card()
+        sheet_layout = QVBoxLayout(sheet_card)
+        sheet_layout.setContentsMargins(14, 14, 14, 14)
+        sheet_layout.addWidget(styled_label('Period grade sheet · current calculations', 'cardTitle'))
+        sheet_layout.addWidget(self.grade_sheet)
+        root.addWidget(sheet_card, 1)
         self.refresh_offerings()
 
     def refresh(self):
@@ -574,6 +588,7 @@ class GradesPage(QWidget):
             else:
                 self.current_offering = None
                 fill_table(self.roster, [])
+                fill_table(self.grade_sheet, [])
                 self.count.setValue(0)
                 self.average.setValue("—")
         except Exception as e:
@@ -600,10 +615,48 @@ class GradesPage(QWidget):
                     text = "No grade yet"
                 rows.append((e[0], f"{e[2]} {e[3]}", e[4], e[5], text))
             fill_table(self.roster, rows)
+            self.load_grade_sheet(oid, enrollments)
             self.count.setValue(len(rows))
             self.average.setValue(f"{sum(grades)/len(grades):.1f}%" if grades else "—")
         except Exception as e:
             self.app.error(str(e))
+
+    def load_grade_sheet(self, oid, enrollments):
+        records = self.app.data.records()
+        component_ids = {r['percentage_id'] for r in records['grade_percentages'] if r['offering_id'] == oid}
+        components = [r for r in records['grade_components'] if r['percentage_id'] in component_ids]
+        headers = ['Enrollment', 'Student', 'Midterm', 'Final', 'Overall'] + [f"{c['name']} / {c['max_score']}" for c in components] + ['Readiness']
+        self.grade_sheet.setColumnCount(len(headers))
+        self.grade_sheet.setHorizontalHeaderLabels(headers)
+        rows = []
+        for e in enrollments:
+            scores = {s['component_id']: s['score'] for s in records['grade_component_scores'] if s['enrollment_id'] == e[0]}
+            try:
+                result = self.app.data.period_result(e[0])
+                grades = [f"{result[k]:.2f}%" for k in ['midterm', 'final', 'overall']]
+                status = self.app.data.period_result_status(e[0], result)
+            except ValueError as error:
+                grades = ['—'] * 3
+                status = str(error)
+            rows.append([e[0], f'{e[2]} {e[3]}'] + grades + [scores.get(c['component_id'], '—') for c in components] + [status])
+        fill_table(self.grade_sheet, rows)
+
+    def configure_periods(self):
+        if not self.current_offering:
+            return
+        dialog = PeriodPolicyDialog(self, self.current_offering, self.app.data.records())
+        if dialog.exec() == QDialog.Accepted:
+            policy, weights = dialog.values()
+            self.app.run_write(lambda: self.app.period_service.save_policy(policy, weights), 'Period grading configuration saved.')
+
+    def save_period_grades(self):
+        row = self.roster.currentRow()
+        if row < 0:
+            self.app.warning('Select a student in the roster first.')
+            return
+        eid = self.roster.item(row, 0).text()
+        self.app.run_write(lambda: self.app.period_service.calculate_and_save(eid),
+                           lambda result: f"Period grades saved. Overall: {result['overall']:.2f}%")
 
     def record_score(self):
         row = self.roster.currentRow()
@@ -733,7 +786,7 @@ class ReportsPage(QWidget):
         body = Card()
         bl = QVBoxLayout(body)
         bl.setContentsMargins(14, 14, 14, 14)
-        self.list = table(["Enrollment", "Subject", "Class", "Section", "Semester", "Status", "Final Grade"])
+        self.list = table(["Enrollment", "Subject", "Class", "Section", "Semester", "Status", "Legacy Grade", "Midterm", "Final", "Overall", "Period Readiness"])
         bl.addWidget(self.list)
         root.addWidget(body, 1)
         self.refresh()
@@ -772,7 +825,14 @@ class ReportsPage(QWidget):
                     grades.append(value)
                 except Exception:
                     grade_text = "No grade yet"
-                rows.append((e[0], f"{e[11]} — {e[12]}", e[4], e[6], e[8], e[2], grade_text))
+                try:
+                    result = self.app.data.period_result(e[0])
+                    period_values = [f"{result[k]:.2f}%" for k in ['midterm', 'final', 'overall']]
+                    readiness = self.app.data.period_result_status(e[0], result)
+                except ValueError as error:
+                    period_values = ['—'] * 3
+                    readiness = str(error)
+                rows.append([e[0], f"{e[11]} — {e[12]}", e[4], e[6], e[8], e[2], grade_text] + period_values + [readiness])
             fill_table(self.list, rows)
             self.summary.setText(f"Average {sum(grades)/len(grades):.2f}%" if grades else "No grades available")
         except Exception as e:
@@ -925,6 +985,7 @@ class StudentHub(BorderlessWindow):
 
         self.student_service = StudentService()
         self.academic_service = AcademicService()
+        self.period_service = PeriodGradingService()
         self.enrollment_service = EnrollmentService()
         self.score_service = ScoreService()
         self.grading_service = GradingService()

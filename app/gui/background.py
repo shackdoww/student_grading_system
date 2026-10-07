@@ -1,6 +1,7 @@
 """Execute blocking application operations without touching widgets from workers."""
 
 from uuid import uuid4
+from shiboken6 import isValid
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
 
@@ -20,9 +21,18 @@ class Job(QRunnable):
         try:
             result = self.operation()
         except Exception as error:
-            self.signals.done.emit(self.token, None, str(error))
+            self.deliver(None, str(error))
         else:
-            self.signals.done.emit(self.token, result, '')
+            self.deliver(result, '')
+
+    def deliver(self, result, error):
+        try:
+            self.signals.done.emit(self.token, result, error)
+        except RuntimeError:
+            # QApplication teardown can delete the signal source while an
+            # already-started database transaction finishes. Do not abort writes.
+            if isValid(self.signals):
+                raise
 
 
 class BackgroundJobs(QObject):

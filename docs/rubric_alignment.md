@@ -28,15 +28,30 @@ business validation remains in `AcademicService`, and protected SQL deletion
 belongs to the persistence layer. No Tkinter workflow was reintroduced.
 Git history records the exact before/after implementation.
 
+## Period grading update
+
+Migration 002 adds three tables without altering the ten existing core tables:
+`grading_policies`, `period_category_weights`, and `period_grade_results`.
+The separate PeriodCalculator strategy normalizes raw scores, averages scores
+within a category, applies per-period category weights, and computes the overall
+result with configurable period weights. Full precision is retained until the
+final two-decimal rounding. Missing scores are rejected, not silently zeroed.
+The legacy calculator and existing saved consolidated grades are unchanged.
+
+PeriodGradingService validates term alignment and saves each policy and its
+category weights atomically. Calculation reads policy, components and scores
+and persists results in a serializable transaction. Class Grades provides setup,
+saving, and an exportable/printable sheet containing raw component scores and
+Midterm/Final/Overall results. Student reports include those results and indicate
+when saved grades are outdated relative to current calculations.
+
+`tests.verify_period_grading` verifies migration repeatability, durable saves,
+configuration-based recalculation, invalid-policy rollback, preserved legacy
+data, and PySide6 grade-sheet/student-report values in an isolated schema.
+This is integration/UI evidence, not a complete mouse-driven end-to-end test.
+
 ## Outstanding requirements
 
-- Independent Midterm and Final computation and configurable period-to-overall
-  weights. The current calculator computes one category-weighted consolidated
-  grade across submitted scores. It must not be relabeled as a period result.
-- Persisted Midterm/Final/Overall results and configuration. The current schema
-  has one `grades.final_grade` field and no overall period-weight configuration.
-  This requires an approved additive migration, not destructive recreation.
-- Grade sheets with every raw component score and all period/overall results.
 - Student and enrollment edit/delete controls with the same evidence safeguards.
 - Explicit domain values/interfaces, complete CRC/UML/ERD documentation, and
   repository write tests in an isolated test database.

@@ -62,6 +62,9 @@ If the database already exists, do not rerun `schema.sql` because it recreates t
 
 1. Create the PostgreSQL database named `student_grading_system`.
 2. Run `app/database/schema.sql`.
+   Then apply `app/database/migration_002_period_grading.sql` to add period
+   grading tables. On an existing database, apply only the migration; do not
+   recreate the schema. The migration can safely be run more than once.
 3. Create a local `.env` file:
 
 ```env
@@ -103,3 +106,38 @@ grades table
 ```
 
 The calculator converts each component score to a percentage, averages components that belong to the same grading percentage, applies the category weight, and adds the weighted results to produce the final grade.
+
+## Midterm Final and Overall grades
+
+The legacy calculation and saved grades remain unchanged. For the separate
+period workflow, create components for two grading periods matching the class
+school year and semester. In Class Grades, choose **Period Setup**, select the
+Midterm and Final periods, and enter the overall weights and each period's
+category weights. Each set must total 100%; the percentages are configurable,
+not hard-coded. Category IDs refer to the existing Academic weights records.
+
+Enter all required component scores, including explicit zero scores. Missing
+scores block period calculation. **Save Period Grades** persists separate
+Midterm, Final, and Overall values for the selected roster student. The grade
+sheet includes raw scores and current calculations; the Readiness column shows
+whether persisted results match. Configuration or score changes require saving
+again to update stored results. Student reports include all three period values.
+Select the period grade sheet in the output selector to export CSV or print.
+
+Apply the additive migration from Python with:
+
+```powershell
+python -m app.database.apply_migration --period-grading
+```
+
+Verification:
+
+```powershell
+python -m pytest -q
+python -m tests.verify_period_grading
+python -m tests.gui_smoke
+```
+
+The period integration test creates a uniquely named isolated PostgreSQL schema,
+checks durable results and recalculation, exercises the PySide6 reports, and
+removes only that test schema afterward. It needs CREATE SCHEMA privileges.

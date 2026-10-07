@@ -5,7 +5,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QWidget
 
-from app.gui.background import BackgroundJobs
+from app.gui.background import BackgroundJobs, Job
 
 
 def wait_until(predicate):
@@ -56,3 +56,13 @@ def test_background_errors_are_delivered_and_close_drops_callbacks():
     QTest.qWait(100)
     assert errors == ['database unavailable']
     host.close()
+
+
+def test_job_finishes_after_signal_source_destroyed():
+    from shiboken6 import delete
+    app = QApplication.instance() or QApplication([])
+    completed = []
+    job = Job('shutdown', lambda: completed.append(True))
+    delete(job.signals)
+    job.run()
+    assert completed == [True]

@@ -1,30 +1,21 @@
-import os
+import argparse
 from pathlib import Path
-
-import psycopg
-from dotenv import load_dotenv
-
-
-def get_connection():
-    load_dotenv()
-    return psycopg.connect(
-        host=os.getenv("DB_HOST"),
-        port=os.getenv("DB_PORT"),
-        dbname=os.getenv("DB_NAME"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-    )
+from app.database.connection import get_connection
 
 
 def main():
-    migration_path = Path(__file__).with_name("migration_001_backend_validation.sql")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--period-grading', action='store_true')
+    args = parser.parse_args()
+    filename = 'migration_002_period_grading.sql' if args.period_grading else 'migration_001_backend_validation.sql'
+    migration_path = Path(__file__).with_name(filename)
     sql = migration_path.read_text(encoding="utf-8")
 
     with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(sql)
 
-    print("Migration 001 applied successfully.")
+    print(f"{filename} applied successfully.")
 
 
 if __name__ == "__main__":
