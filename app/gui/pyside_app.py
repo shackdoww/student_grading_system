@@ -2,11 +2,11 @@ from datetime import date
 import os
 import sys
 
-from PySide6.QtCore import Qt, QSize, QByteArray
+from PySide6.QtCore import Qt, QSize, QByteArray, QTimer, Signal
 from PySide6.QtGui import QColor, QIcon, QPixmap, QPainter
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QFrame, QLabel, QPushButton,
+    QApplication, QWidget, QFrame, QLabel, QPushButton,
     QToolButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QComboBox,
     QDialog, QDialogButtonBox, QFormLayout, QMessageBox, QFileDialog,
@@ -15,14 +15,10 @@ from PySide6.QtWidgets import (
 
 from app.gui.table_output import export_table, print_table
 from app.gui.motion import InteractionFeedback, PageReveal
+from app.gui.background import BackgroundJobs
+from app.gui.data_snapshot import DataSnapshot, load_snapshot
+from app.gui.window_chrome import BorderlessWindow, TitleBar
 
-from app.repositories.class_offering_repository import ClassOfferingRepository
-from app.repositories.enrollment_repository import EnrollmentRepository
-from app.repositories.grade_component_repository import GradeComponentRepository
-from app.repositories.grade_percentage_repository import GradePercentageRepository
-from app.repositories.grading_period_repository import GradingPeriodRepository
-from app.repositories.subject_repository import SubjectRepository
-from app.repositories.teacher_repository import TeacherRepository
 from app.services.enrollment_service import EnrollmentService
 from app.services.grading_service import GradingService
 from app.services.school_data_import_service import SchoolDataImportService, DATASETS
@@ -155,22 +151,28 @@ def table(columns, rows=0):
     t.setSelectionMode(QAbstractItemView.SingleSelection)
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
     t.verticalHeader().setVisible(False)
-    t.horizontalHeader().setStretchLastSection(True)
-    t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+    t.horizontalHeader().setStretchLastSection(False)
+    t.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+    for column in range(len(columns)):
+        widths = {"Program": 105, "Status": 100, "Units": 90, "Section": 100, "Email": 220}
+        t.setColumnWidth(column, widths.get(columns[column], 110 if column == 0 else 170))
     t.horizontalHeader().setSectionResizeMode(len(columns) - 1, QHeaderView.Stretch)
     t.setShowGrid(False)
     return t
 
 
 def fill_table(t, rows):
+    blocked = t.blockSignals(True)
+    t.setUpdatesEnabled(False)
+    t.clearSelection()
     t.setRowCount(len(rows))
     for r, values in enumerate(rows):
         for c, value in enumerate(values):
             item = QTableWidgetItem("" if value is None else str(value))
             item.setData(Qt.UserRole, value)
             t.setItem(r, c, item)
-    for row in range(t.rowCount()):
-        t.setRowHeight(row, 44)
+    t.setUpdatesEnabled(True)
+    t.blockSignals(blocked)
 
 
 class StudentDialog(QDialog):
@@ -241,32 +243,11 @@ class DashboardPage(QWidget):
         self.app = app
         self.selected_student = None
         root = QVBoxLayout(self)
-        root.setContentsMargins(28, 24, 28, 26)
-        root.setSpacing(18)
+        root.setContentsMargins(24, 18, 24, 20)
+        root.setSpacing(14)
 
         root.addWidget(PageHeader("Dashboard", "School activity and student performance at a glance.",
                                   button("Add student", self.add_student, True)))
-
-        overview = QFrame()
-        overview.setObjectName("dashboardOverview")
-        ol = QHBoxLayout(overview)
-        ol.setContentsMargins(24, 18, 24, 18)
-        copy = QVBoxLayout()
-        copy.setSpacing(4)
-        kicker = QLabel("ACADEMIC OVERVIEW")
-        kicker.setObjectName("overviewKicker")
-        copy.addWidget(kicker)
-        headline = QLabel("A focused view of school activity and student progress.")
-        headline.setObjectName("overviewTitle")
-        headline.setWordWrap(True)
-        copy.addWidget(headline)
-        self.overview_detail = QLabel("Loading current records from PostgreSQL.")
-        self.overview_detail.setObjectName("overviewDetail")
-        copy.addWidget(self.overview_detail)
-        ol.addLayout(copy, 1)
-        overview_action = button("Review class grades", lambda: self.app.show_page("grades"), True)
-        ol.addWidget(overview_action, 0, Qt.AlignVCenter)
-        root.addWidget(overview)
 
         stats = QGridLayout()
         stats.setSpacing(14)
@@ -289,7 +270,7 @@ class DashboardPage(QWidget):
         st.setObjectName("cardTitle")
         sh.addWidget(st)
         sh.addStretch()
-        refresh = button("↻", self.refresh, False, True)
+        refresh = button("↻", self.app.reload_data, False, True)
         refresh.setFixedWidth(42)
         sh.addWidget(refresh)
         sl.addLayout(sh)
@@ -299,8 +280,8 @@ class DashboardPage(QWidget):
         sl.addWidget(self.search)
         self.student_table = table(["ID", "Name", "Program", "Status"])
         self.student_table.itemSelectionChanged.connect(self.student_selected)
-        sl.addWidget(self.student_table)
-        workspace.addWidget(students_card, 3)
+        sl.addWidget(self.student_table, 1)
+        workspace.addWidget(students_card, 2)
 
         side = QVBoxLayout()
         side.setSpacing(16)
@@ -333,22 +314,19 @@ class DashboardPage(QWidget):
         ql.addWidget(button("Manage Enrollments", lambda: self.app.show_page("enrollments")))
         ql.addWidget(button("Student Report", self.open_report))
         side.addWidget(quick, 1)
-        workspace.addLayout(side, 2)
+        workspace.addLayout(side, 1)
         root.addLayout(workspace, 1)
 
     def refresh(self):
         try:
-            students = self.app.student_service.get_all()
+            students = self.app.data.students()
             self._students = students
             self.filter_students()
             self.students_stat.setValue(len(students))
             self.enrollments_stat.setValue(self.app.enrollment_repo_count())
-            self.teachers_stat.setValue(len(self.app.teacher_repo.find_all()))
-            offerings = self.app.offering_repo.find_all()
+            self.teachers_stat.setValue(len(self.app.data.teachers()))
+            offerings = self.app.data.offerings()
             self.classes_stat.setValue(len(offerings))
-            self.overview_detail.setText(
-                f"{len(students)} students across {len(offerings)} class offering(s)."
-            )
             if self.student_table.rowCount() and not self.student_table.selectedItems():
                 self.student_table.selectRow(0)
         except Exception as e:
@@ -360,7 +338,8 @@ class DashboardPage(QWidget):
                     if not query or query in " ".join(map(str, s)).casefold()]
         fill_table(self.student_table, [(s[0], f"{s[1]} {s[2]}", s[4], s[5]) for s in students])
         if students:
-            self.student_table.selectRow(0)
+            index = next((i for i, student in enumerate(students) if student[0] == self.selected_student), 0)
+            self.student_table.selectRow(index)
         else:
             self.selected_student = None
             self.selected_name.setText("No student selected")
@@ -374,17 +353,17 @@ class DashboardPage(QWidget):
             return
         sid = self.student_table.item(self.student_table.currentRow(), 0).text()
         try:
-            student = self.app.student_service.get(sid)
+            student = self.app.data.student(sid)
             self.selected_student = sid
             self.selected_name.setText(f"{student[1]} {student[2]}")
             self.selected_info.setText(f"{student[0]}  ·  {student[4]}  ·  {student[3]}  ·  {student[5]}")
-            enrollments = self.app.enrollment_service.get_by_student(sid)
+            enrollments = self.app.data.enrollments_for_student(sid)
             self.enrollment_label.setText(f"{len(enrollments)} enrollment(s)")
             grades = []
             for e in enrollments:
                 try:
-                    g = self.app.grading_service.get_saved_grade(e[0])
-                    grades.append(float(g[1]) if g else float(self.app.grading_service.calculate_grade(e[0])))
+                    g = self.app.data.saved_grade(e[0])
+                    grades.append(float(g[1]) if g else float(self.app.data.calculate_grade(e[0])))
                 except Exception:
                     pass
             self.grade_label.setText(f"{sum(grades)/len(grades):.1f}%" if grades else "—")
@@ -397,8 +376,7 @@ class DashboardPage(QWidget):
             return
         try:
             v = d.values()
-            self.app.student_service.save(**v)
-            self.refresh()
+            self.app.run_write(lambda: self.app.student_service.save(**v), "Student saved.")
         except Exception as e:
             self.app.error(str(e))
 
@@ -417,9 +395,9 @@ class AcademicPage(QWidget):
         super().__init__()
         self.app = app
         root = QVBoxLayout(self)
-        root.setContentsMargins(28, 24, 28, 26)
-        root.setSpacing(18)
-        root.addWidget(PageHeader("Academic", "Teachers, subjects, grading periods and class offerings.", button("Refresh", self.refresh)))
+        root.setContentsMargins(24, 18, 24, 20)
+        root.setSpacing(14)
+        root.addWidget(PageHeader("Academic", "Teachers, subjects, grading periods and class offerings.", button("Refresh", self.app.reload_data)))
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tab_motion = PageReveal(self.tabs)
@@ -440,13 +418,13 @@ class AcademicPage(QWidget):
 
     def refresh(self):
         try:
-            teachers = self.app.teacher_repo.find_all()
+            teachers = self.app.data.teachers()
             fill_table(self.teacher_table, [(r[0], f"{r[1]} {r[2]}", r[3], r[4], r[5]) for r in teachers])
-            subjects = self.app.subject_repo.find_all()
+            subjects = self.app.data.subjects()
             fill_table(self.subject_table, [(r[0], r[1], r[2], r[4], r[3] or "—") for r in subjects])
-            periods = self.app.period_repo.find_all()
+            periods = self.app.data.periods()
             fill_table(self.period_table, [(r[0], r[1], r[2], r[3], r[4], r[5]) for r in periods])
-            offerings = self.app.offering_repo.find_all()
+            offerings = self.app.data.offerings()
             fill_table(self.offering_table, [(r[0], r[1], r[11] + " — " + r[12], r[3], r[2], f"{r[8]} {r[9]}", r[6] or "—") for r in offerings])
         except Exception as e:
             self.app.error(str(e))
@@ -457,9 +435,9 @@ class EnrollmentsPage(QWidget):
         super().__init__()
         self.app = app
         root = QVBoxLayout(self)
-        root.setContentsMargins(28, 24, 28, 26)
-        root.setSpacing(18)
-        root.addWidget(PageHeader("Enrollments", "Connect students to class offerings without leaving the workspace.", button("Refresh", self.refresh)))
+        root.setContentsMargins(24, 18, 24, 20)
+        root.setSpacing(14)
+        root.addWidget(PageHeader("Enrollments", "Connect students to class offerings without leaving the workspace.", button("Refresh", self.app.reload_data)))
 
         editor = Card()
         form = QGridLayout(editor)
@@ -496,19 +474,25 @@ class EnrollmentsPage(QWidget):
 
     def refresh(self):
         try:
-            students = self.app.student_service.get_all()
-            offerings = self.app.offering_repo.find_all()
+            students = self.app.data.students()
+            offerings = self.app.data.offerings()
+            selected_student = self.student.currentData()
+            selected_offering = self.offering.currentData()
             self.student.clear()
             for s in students:
                 self.student.addItem(f"{s[0]} · {s[1]} {s[2]}", s[0])
             self.offering.clear()
             for o in offerings:
                 self.offering.addItem(f"{o[11]} · {o[12]} · {o[3]}", o[0])
+            for combo, selected in ((self.student, selected_student), (self.offering, selected_offering)):
+                index = combo.findData(selected)
+                if index >= 0:
+                    combo.setCurrentIndex(index)
             if not self.enrollment_id.text():
-                self.enrollment_id.setText(f"E-{len(self.app.enrollment_repo.find_by_student_id(students[0][0])) + 1}" if students else "E-001")
+                self.enrollment_id.setText(f"E-{len(self.app.data.enrollments_for_student(students[0][0])) + 1}" if students else "E-001")
             rows = []
             for o in offerings:
-                for e in self.app.enrollment_repo.find_by_offering_id(o[0]):
+                for e in self.app.data.enrollments_for_offering(o[0]):
                     rows.append((e[0], f"{e[2]} {e[3]}", o[1], o[3], e[4], e[5]))
             fill_table(self.list, rows)
         except Exception as e:
@@ -518,10 +502,9 @@ class EnrollmentsPage(QWidget):
         if not self.student.currentData() or not self.offering.currentData():
             return
         try:
-            self.app.enrollment_service.save(self.enrollment_id.text().strip(), date.today(), self.status.currentText(),
-                                             self.student.currentData(), self.offering.currentData())
-            self.refresh()
-            self.app.success("Enrollment saved.")
+            args = (self.enrollment_id.text().strip(), date.today(), self.status.currentText(),
+                    self.student.currentData(), self.offering.currentData())
+            self.app.run_write(lambda: self.app.enrollment_service.save(*args), "Enrollment saved.")
         except Exception as e:
             self.app.error(str(e))
 
@@ -532,18 +515,15 @@ class GradesPage(QWidget):
         self.app = app
         self.current_offering = None
         root = QVBoxLayout(self)
-        root.setContentsMargins(28, 24, 28, 26)
-        root.setSpacing(18)
-        header = QHBoxLayout()
-        box = QVBoxLayout()
-        box.addWidget(styled_label("Class Grades", "pageTitle"))
-        box.addWidget(styled_label("Select a class, inspect its roster, and record scores.", "subtitle"))
-        header.addLayout(box)
-        header.addStretch()
+        root.setContentsMargins(24, 18, 24, 20)
+        root.setSpacing(14)
+        actions = QWidget()
+        header = QHBoxLayout(actions)
+        header.setContentsMargins(0, 0, 0, 0)
         self.offering = QComboBox()
         self.offering.currentIndexChanged.connect(self.load_class)
         header.addWidget(self.offering)
-        root.addLayout(header)
+        root.addWidget(PageHeader("Class Grades", "Select a class, inspect its roster, and record scores.", actions))
 
         self.summary = QHBoxLayout()
         self.count = StatCard("Students", "0", PURPLE)
@@ -571,10 +551,14 @@ class GradesPage(QWidget):
 
     def refresh_offerings(self):
         try:
+            selected = self.offering.currentData()
             self.offering.blockSignals(True)
             self.offering.clear()
-            for o in self.app.offering_repo.find_all():
+            for o in self.app.data.offerings():
                 self.offering.addItem(f"{o[11]} · {o[12]} · {o[3]} · {o[5]}", o[0])
+            selected_index = self.offering.findData(selected)
+            if selected_index >= 0:
+                self.offering.setCurrentIndex(selected_index)
             if self.offering.count():
                 self.load_class()
             else:
@@ -595,11 +579,11 @@ class GradesPage(QWidget):
         try:
             rows = []
             grades = []
-            enrollments = self.app.enrollment_service.get_by_offering(oid)
+            enrollments = self.app.data.enrollments_for_offering(oid)
             for e in enrollments:
                 try:
-                    g = self.app.grading_service.get_saved_grade(e[0])
-                    value = float(g[1]) if g else float(self.app.grading_service.calculate_grade(e[0]))
+                    g = self.app.data.saved_grade(e[0])
+                    value = float(g[1]) if g else float(self.app.data.calculate_grade(e[0]))
                     text = f"{value:.2f}%"
                     grades.append(value)
                 except Exception:
@@ -617,15 +601,14 @@ class GradesPage(QWidget):
             self.app.warning("Select a student first.")
             return
         eid = self.roster.item(row, 0).text()
-        components = self.app.component_repo.find_by_offering_id(self.current_offering)
+        components = self.app.data.components_for_offering(self.current_offering)
         d = ScoreDialog(self, eid, components)
         if d.exec() != QDialog.Accepted:
             return
         try:
             score_id, cid, score, remarks = d.values()
-            self.app.score_service.record_score(score_id, eid, cid, score, remarks)
-            self.load_class()
-            self.app.success("Score recorded.")
+            self.app.run_write(lambda: self.app.score_service.record_score(score_id, eid, cid, score, remarks),
+                               "Score recorded.")
         except Exception as e:
             self.app.error(str(e))
 
@@ -636,9 +619,8 @@ class GradesPage(QWidget):
             return
         eid = self.roster.item(row, 0).text()
         try:
-            grade = self.app.grading_service.calculate_and_save_grade(eid)
-            self.load_class()
-            self.app.success(f"Grade saved: {grade:.2f}%")
+            self.app.run_write(lambda: self.app.grading_service.calculate_and_save_grade(eid),
+                               lambda grade: f"Grade saved: {grade:.2f}%")
         except Exception as e:
             self.app.error(str(e))
 
@@ -648,18 +630,15 @@ class RosterPage(QWidget):
         super().__init__()
         self.app = app
         root = QVBoxLayout(self)
-        root.setContentsMargins(28, 24, 28, 26)
-        root.setSpacing(18)
-        header = QHBoxLayout()
-        box = QVBoxLayout()
-        box.addWidget(styled_label("Class / Section", "pageTitle"))
-        box.addWidget(styled_label("A clean roster view for each class offering.", "subtitle"))
-        header.addLayout(box)
-        header.addStretch()
+        root.setContentsMargins(24, 18, 24, 20)
+        root.setSpacing(14)
+        actions = QWidget()
+        header = QHBoxLayout(actions)
+        header.setContentsMargins(0, 0, 0, 0)
         self.offering = QComboBox()
         self.offering.currentIndexChanged.connect(self.refresh)
         header.addWidget(self.offering)
-        root.addLayout(header)
+        root.addWidget(PageHeader("Class / Section", "A clean roster view for each class offering.", actions))
         hero = Card()
         hl = QVBoxLayout(hero)
         hl.setContentsMargins(22, 18, 22, 18)
@@ -679,27 +658,35 @@ class RosterPage(QWidget):
         self.refresh_offerings()
 
     def refresh_offerings(self):
+        selected = self.offering.currentData()
         self.offering.blockSignals(True)
         self.offering.clear()
         try:
-            for o in self.app.offering_repo.find_all():
+            for o in self.app.data.offerings():
                 self.offering.addItem(f"{o[11]} · {o[12]} · {o[3]}", o[0])
         except Exception as e:
             self.app.error(str(e))
+        selected_index = self.offering.findData(selected)
+        if selected_index >= 0:
+            self.offering.setCurrentIndex(selected_index)
         self.offering.blockSignals(False)
         if self.offering.count():
             self.refresh()
+        else:
+            fill_table(self.roster, [])
+            self.class_name.setText("Select a class")
+            self.class_meta.clear()
 
     def refresh(self):
         oid = self.offering.currentData()
         if not oid:
             return
         try:
-            offering = next((o for o in self.app.offering_repo.find_all() if o[0] == oid), None)
+            offering = next((o for o in self.app.data.offerings() if o[0] == oid), None)
             if offering:
                 self.class_name.setText(f"{offering[11]} · {offering[12]}")
                 self.class_meta.setText(f"{offering[1]}  ·  Section {offering[3]}  ·  {offering[2]}  ·  {offering[6] or 'Room TBA'}")
-            rows = self.app.enrollment_service.get_by_offering(oid)
+            rows = self.app.data.enrollments_for_offering(oid)
             fill_table(self.roster, [(r[0], r[1], f"{r[2]} {r[3]}", r[4], r[5]) for r in rows])
         except Exception as e:
             self.app.error(str(e))
@@ -710,19 +697,16 @@ class ReportsPage(QWidget):
         super().__init__()
         self.app = app
         root = QVBoxLayout(self)
-        root.setContentsMargins(28, 24, 28, 26)
-        root.setSpacing(18)
-        header = QHBoxLayout()
-        box = QVBoxLayout()
-        box.addWidget(styled_label("Student Report", "pageTitle"))
-        box.addWidget(styled_label("Academic snapshot with calculated or saved grades.", "subtitle"))
-        header.addLayout(box)
-        header.addStretch()
+        root.setContentsMargins(24, 18, 24, 20)
+        root.setSpacing(14)
+        actions = QWidget()
+        header = QHBoxLayout(actions)
+        header.setContentsMargins(0, 0, 0, 0)
         self.student = QComboBox()
         self.student.currentIndexChanged.connect(lambda: self.load_student(self.student.currentData()))
         header.addWidget(self.student)
-        header.addWidget(button("↻", lambda: self.load_student(self.student.currentData()), False, True))
-        root.addLayout(header)
+        header.addWidget(button("↻", self.app.reload_data, False, True))
+        root.addWidget(PageHeader("Student Report", "Academic snapshot with calculated or saved grades.", actions))
         profile = Card()
         pl = QVBoxLayout(profile)
         pl.setContentsMargins(22, 18, 22, 18)
@@ -745,11 +729,15 @@ class ReportsPage(QWidget):
         self.refresh()
 
     def refresh(self):
-        students = self.app.student_service.get_all()
+        students = self.app.data.students()
+        selected = self.student.currentData()
         self.student.blockSignals(True)
         self.student.clear()
         for s in students:
             self.student.addItem(f"{s[0]} · {s[1]} {s[2]}", s[0])
+        selected_index = self.student.findData(selected)
+        if selected_index >= 0:
+            self.student.setCurrentIndex(selected_index)
         self.student.blockSignals(False)
         self.load_student(self.student.currentData())
 
@@ -761,15 +749,15 @@ class ReportsPage(QWidget):
             fill_table(self.list, [])
             return
         try:
-            s = self.app.student_service.get(sid)
+            s = self.app.data.student(sid)
             self.name.setText(f"{s[1]} {s[2]}")
             self.info.setText(f"{s[0]}  ·  {s[4]}  ·  {s[3]}  ·  {s[5]}")
             rows = []
             grades = []
-            for e in self.app.enrollment_service.get_by_student(sid):
+            for e in self.app.data.enrollments_for_student(sid):
                 try:
-                    g = self.app.grading_service.get_saved_grade(e[0])
-                    value = float(g[1]) if g else float(self.app.grading_service.calculate_grade(e[0]))
+                    g = self.app.data.saved_grade(e[0])
+                    value = float(g[1]) if g else float(self.app.data.calculate_grade(e[0]))
                     grade_text = f"{value:.2f}%"
                     grades.append(value)
                 except Exception:
@@ -789,16 +777,13 @@ class ImportPage(QWidget):
         self.folder = None
         self.datasets = None
         root = QVBoxLayout(self)
-        root.setContentsMargins(28, 24, 28, 26)
-        root.setSpacing(18)
-        header = QHBoxLayout()
-        box = QVBoxLayout()
-        box.addWidget(styled_label("Data Import", "pageTitle"))
-        box.addWidget(styled_label("Validate the complete school dataset before touching PostgreSQL.", "subtitle"))
-        header.addLayout(box)
-        header.addStretch()
+        root.setContentsMargins(24, 18, 24, 20)
+        root.setSpacing(14)
+        actions = QWidget()
+        header = QHBoxLayout(actions)
+        header.setContentsMargins(0, 0, 0, 0)
         header.addWidget(button("Select Folder", self.select_folder, True))
-        root.addLayout(header)
+        root.addWidget(PageHeader("Data Import", "Validate the complete school dataset before touching PostgreSQL.", actions))
 
         self.path = QLabel("No dataset folder selected")
         self.path.setObjectName("subtitle")
@@ -860,69 +845,106 @@ class ImportPage(QWidget):
         self.status.setText("Folder selected. Validate all datasets before importing.")
 
     def validate(self):
-        try:
-            self.status.setText("Validating all 10 datasets…")
-            QApplication.processEvents()
-            datasets = self.service.read_folder(self.folder)
-            errors = self.service.validate(datasets)
+        if not self.folder or getattr(self, "_validating", False):
+            return
+        self._validating = True
+        self.datasets = None
+        self.status.setText("Validating all 10 datasets…")
+        self.validate_btn.setEnabled(False)
+        self.import_btn.setEnabled(False)
+        folder = self.folder
+
+        def work():
+            datasets = self.service.read_folder(folder)
+            return datasets, self.service.validate(datasets)
+
+        def done(result):
+            self._validating = False
+            self.validate_btn.setEnabled(True)
+            if folder != self.folder:
+                return
+            datasets, errors = result
             if errors:
-                self.import_btn.setEnabled(False)
-                QMessageBox.warning(self, "Validation failed", "\n".join(f"• {e}" for e in errors[:40]))
                 self.status.setText(f"Validation failed: {len(errors)} issue(s).")
+                QMessageBox.warning(self, "Validation failed", "\n".join(errors[:40]))
                 return
             self.datasets = datasets
-            total = sum(len(v) for v in datasets.values())
+            total = sum(len(rows) for rows in datasets.values())
             for name, rows in datasets.items():
                 self.row_labels[name].setText(f"{len(rows)} RECORDS")
             self.import_btn.setEnabled(True)
             self.status.setText(f"Validation passed · {total} records ready.")
-        except Exception as e:
-            self.app.error(str(e))
+
+        def failed(error):
+            self._validating = False
+            self.validate_btn.setEnabled(True)
+            self.status.setText("Validation failed.")
+            self.app.error(error)
+
+        self.app.jobs.submit(work, done, failed)
 
     def import_data(self):
-        if not self.datasets:
+        if not self.datasets or self.app._writing:
             return
         if QMessageBox.question(self, "Import dataset", "Import all 10 datasets in one PostgreSQL transaction?") != QMessageBox.Yes:
             return
-        try:
-            total = sum(len(v) for v in self.datasets.values())
-            self.service.import_all(self.datasets)
-            self.app.refresh_all()
+        datasets = self.datasets
+        total = sum(len(rows) for rows in datasets.values())
+        self.import_btn.setEnabled(False)
+        self.status.setText("Importing school data…")
+
+        def done(result):
             self.status.setText(f"Import complete · {total} records committed.")
-            self.import_btn.setEnabled(False)
-            QMessageBox.information(self, "Import complete", f"{total} records were committed successfully.")
-        except Exception as e:
-            self.app.error(f"Import failed. Transaction rolled back.\n\n{e}")
+
+        def failed(error):
+            self.status.setText("Import failed. Transaction rolled back.")
+            self.import_btn.setEnabled(True)
+
+        self.app.run_write(lambda: self.service.import_all(datasets),
+                           f"{total} records were committed successfully.", done, failed)
 
 
+class StudentHub(BorderlessWindow):
+    data_loaded = Signal()
 
-class StudentHub(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Student Hub · Information & Grading")
-        self.resize(1440, 900)
+        self.resize(1280, 800)
         self.setMinimumSize(1000, 650)
 
         self.student_service = StudentService()
         self.enrollment_service = EnrollmentService()
         self.score_service = ScoreService()
         self.grading_service = GradingService()
-        self.teacher_repo = TeacherRepository()
-        self.subject_repo = SubjectRepository()
-        self.period_repo = GradingPeriodRepository()
-        self.offering_repo = ClassOfferingRepository()
-        self.enrollment_repo = EnrollmentRepository()
-        self.component_repo = GradeComponentRepository()
-        self.percentage_repo = GradePercentageRepository()
 
+        self.data = DataSnapshot()
+        self.jobs = BackgroundJobs(self)
+        self._loading = False
+        self._reload_again = False
+        self._writing = False
+        self._closing = False
+        self._data_version = 0
+        self._rendered_versions = {}
         self.build_ui()
-        self.refresh_all()
+        QTimer.singleShot(0, self.reload_data)
+        self.auto_refresh = QTimer(self)
+        self.auto_refresh.setInterval(60000)
+        self.auto_refresh.timeout.connect(self.reload_data)
+        self.auto_refresh.start()
 
     def build_ui(self):
         central = QWidget()
         central.setObjectName("window")
         self.setCentralWidget(central)
-        shell = QHBoxLayout(central)
+        outer = QVBoxLayout(central)
+        outer.setContentsMargins(5, 5, 5, 5)
+        outer.setSpacing(0)
+        self.title_bar = TitleBar(self)
+        outer.addWidget(self.title_bar)
+        body = QWidget()
+        outer.addWidget(body, 1)
+        shell = QHBoxLayout(body)
         shell.setContentsMargins(0, 0, 0, 0)
         shell.setSpacing(0)
 
@@ -965,6 +987,8 @@ class StudentHub(QMainWindow):
             b.setCheckable(True)
             b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             b.setProperty("icon_name", icon_name)
+            b.normal_icon = sidebar_icon(icon_name, MUTED)
+            b.active_icon = sidebar_icon(icon_name, PURPLE)
             b.clicked.connect(lambda checked=False, k=key: self.show_page(k))
             nl.addWidget(b)
             self.nav_buttons[key] = b
@@ -1007,9 +1031,11 @@ class StudentHub(QMainWindow):
         tl.addWidget(current_date)
         self.output_table = QComboBox()
         self.output_table.setMinimumWidth(140)
+        self.output_table.setMaximumWidth(210)
         tl.addWidget(self.output_table)
         tl.addWidget(button("Export CSV", self.export_current, compact=True))
         tl.addWidget(button("Print", self.print_current, compact=True))
+        tl.addWidget(button("Refresh", self.reload_data, compact=True))
         cl.addWidget(topbar)
         self.stack = QStackedWidget()
         self.stack.setObjectName("pageStack")
@@ -1041,6 +1067,7 @@ class StudentHub(QMainWindow):
                     widget.setProperty("outputTitle", name)
             for combo in page.findChildren(QComboBox):
                 combo.setMinimumContentsLength(12)
+                combo.setMaximumWidth(340)
                 combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
             self.pages[key] = page
             scroll = QScrollArea()
@@ -1062,15 +1089,8 @@ class StudentHub(QMainWindow):
         for k, b in self.nav_buttons.items():
             active = k == key
             b.setChecked(active)
-            icon_name = b.property("icon_name")
-            b.setIcon(sidebar_icon(icon_name, PURPLE if active else MUTED))
-        page = self.pages[key]
-        refresh = getattr(page, "refresh", None)
-        if callable(refresh):
-            try:
-                refresh()
-            except Exception as e:
-                self.error(str(e))
+            b.setIcon(b.active_icon if active else b.normal_icon)
+        self.render_page(key)
 
         if changed:
             self.page_motion.reveal()
@@ -1098,21 +1118,88 @@ class StudentHub(QMainWindow):
         else:
             self.warning("This page has no table to print.")
 
-    def refresh_all(self):
-        for page in self.pages.values():
-            refresh = getattr(page, "refresh", None)
-            if callable(refresh):
-                try:
+    def render_page(self, key):
+        if self._rendered_versions.get(key) == self._data_version:
+            return
+        page = self.pages[key]
+        try:
+            if key == "roster":
+                page.refresh_offerings()
+            else:
+                refresh = getattr(page, "refresh", None)
+                if callable(refresh):
                     refresh()
-                except Exception as error:
-                    self.error(str(error))
+            self._rendered_versions[key] = self._data_version
+        except Exception as error:
+            self.error(str(error))
+
+    def reload_data(self):
+        if self._closing:
+            return
+        if self._writing:
+            self._reload_again = True
+            return
+        if self._loading:
+            self._reload_again = True
+            return
+        self._loading = True
+        self.title_bar.status.setText("Updating school data…")
+        self.jobs.submit(load_snapshot, self.accept_snapshot, self.load_failed)
+
+    def accept_snapshot(self, snapshot):
+        self._loading = False
+        if self._reload_again:
+            self._reload_again = False
+            self.reload_data()
+            return
+        self.page_motion.cancel()
+        self.data = snapshot
+        self._data_version += 1
+        self.render_page(self.current_page)
+        self.title_bar.status.setText("School data up to date" if not self._writing else "Saving…")
+        self.data_loaded.emit()
+
+    def load_failed(self, message):
+        self._loading = False
+        self._reload_again = False
+        self.title_bar.status.setText("Could not update school data")
+        self.error(message)
+
+    def run_write(self, operation, message, after=None, on_failure=None):
+        if self._writing:
+            self.warning("A save is still in progress. Please wait a moment.")
+            return
+        self._writing = True
+        self.title_bar.status.setText("Saving…")
+
+        def done(result):
+            self._writing = False
+            self._reload_again = False
+            self.reload_data()
+            if after:
+                after(result)
+            self.success(message(result) if callable(message) else message)
+
+        def failed(error):
+            self._writing = False
+            self.title_bar.status.setText("Save failed")
+            if on_failure:
+                on_failure(error)
+            self.error(error)
+
+        self.jobs.submit(operation, done, failed)
+
+    def refresh_all(self):
+        self.reload_data()
 
     def enrollment_repo_count(self):
-        try:
-            # Count through offerings to avoid adding a new repository just for the dashboard.
-            return sum(len(self.enrollment_repo.find_by_offering_id(o[0])) for o in self.offering_repo.find_all())
-        except Exception:
-            return 0
+        return self.data.enrollment_count
+
+    def closeEvent(self, event):
+        self._closing = True
+        self.auto_refresh.stop()
+        self.jobs.detach()
+        super().closeEvent(event)
 
     def error(self, message):
         QMessageBox.critical(self, "Something went wrong", message)
@@ -1171,9 +1258,17 @@ QTabWidget::pane {{ border: 1px solid {BORDER}; border-radius: 10px; background:
 QTabBar::tab {{ background: transparent; color: {MUTED}; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; margin-right: 5px; font-weight: 700; }}
 QTabBar::tab:selected {{ color: {PURPLE}; border-bottom-color: {PURPLE}; background: transparent; }}
 QDialog {{ background: {SURFACE}; }}
+QWidget#titleBar {{ background: white; border-bottom: 1px solid {BORDER}; }}
+QLabel#windowTitle {{ color: {TEXT}; font-size: 12px; font-weight: 700; }}
+QLabel#loadStatus {{ color: {MUTED}; font-size: 11px; }}
+QWidget#titleBar QToolButton {{ padding: 0; border-radius: 6px; }}
+QToolButton#windowClose:hover {{ background: #FCE5E8; }}
 QScrollBar:vertical {{ background: {SURFACE_3}; width: 10px; border: 0; }}
 QScrollBar::handle:vertical {{ background: #B8C5D6; border-radius: 4px; min-height: 30px; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+QScrollBar:horizontal {{ background: {SURFACE_3}; height: 10px; border: 0; }}
+QScrollBar::handle:horizontal {{ background: #B8C5D6; border-radius: 4px; min-width: 30px; }}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
 QDialogButtonBox QPushButton {{ min-width: 88px; }}
 """
 

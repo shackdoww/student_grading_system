@@ -1,9 +1,11 @@
 """Manual integration smoke check using the configured PostgreSQL database."""
 import sys
+from time import perf_counter
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
 from PySide6.QtGui import QTextDocument
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QApplication, QMessageBox
@@ -19,15 +21,26 @@ def main():
     errors = []
     original = StudentHub.error
     StudentHub.error = lambda self, message: errors.append(message)
+    started = perf_counter()
     window = StudentHub()
+    print(f'Window construction: {perf_counter() - started:.3f}s')
     StudentHub.error = original
     window.error = lambda message: errors.append(message)
+    window.show()
+    deadline = perf_counter() + 20
+    while window._data_version == 0 and not errors and perf_counter() < deadline:
+        QTest.qWait(10)
+    assert window._data_version > 0, errors or 'Data loading timed out'
+    print(f'Initial data ready: {perf_counter() - started:.3f}s')
+    assert window.windowFlags() & Qt.FramelessWindowHint
     with TemporaryDirectory() as folder:
         for size in ((1100, 700), (1280, 800), (1440, 900)):
             window.resize(*size)
             window.show()
             for key in window.pages:
+                switched = perf_counter()
                 window.show_page(key)
+                print(f'{size}: {key} switch {1000 * (perf_counter() - switched):.1f}ms')
                 app.processEvents()
                 assert window.size().width() == size[0], (key, window.size())
                 if key != 'import':
@@ -37,7 +50,7 @@ def main():
         window.showNormal()
         window.resize(1280, 800)
         window.show_page('dashboard')
-        app.processEvents()
+        QTest.qWait(260)
         window.grab().save(str(Path(folder) / 'dashboard.png'))
         if len(sys.argv) > 1:
             window.grab().save(sys.argv[1])
@@ -60,6 +73,9 @@ def main():
         original_warning = QMessageBox.warning
         QMessageBox.warning = lambda *args: QMessageBox.Ok
         page.validate()
+        deadline = perf_counter() + 20
+        while getattr(page, '_validating', False) and perf_counter() < deadline:
+            QTest.qWait(10)
         QMessageBox.warning = original_warning
         assert 'passed' in page.status.text().lower() or 'failed' in page.status.text().lower()
     window.close()
