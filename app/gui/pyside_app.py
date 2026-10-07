@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.gui.table_output import export_table, print_table
+from app.gui.motion import InteractionFeedback, PageReveal
 
 from app.repositories.class_offering_repository import ClassOfferingRepository
 from app.repositories.enrollment_repository import EnrollmentRepository
@@ -80,6 +81,7 @@ def button(text, callback, primary=False, compact=False):
     b.clicked.connect(callback)
     b.setProperty("primary", primary)
     b.setProperty("compact", compact)
+    b.motion_feedback = InteractionFeedback(b)
     return b
 
 
@@ -195,6 +197,8 @@ class StudentDialog(QDialog):
         else:
             self.fields["status"].setText("Active")
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        for control in buttons.buttons():
+            control.motion_feedback = InteractionFeedback(control)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
@@ -221,6 +225,8 @@ class ScoreDialog(QDialog):
         form.addRow("Score", self.score)
         form.addRow("Remarks", self.remarks)
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        for control in buttons.buttons():
+            control.motion_feedback = InteractionFeedback(control)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
@@ -416,6 +422,8 @@ class AcademicPage(QWidget):
         root.addWidget(PageHeader("Academic", "Teachers, subjects, grading periods and class offerings.", button("Refresh", self.refresh)))
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
+        self.tab_motion = PageReveal(self.tabs)
+        self.tabs.currentChanged.connect(lambda: self.tab_motion.reveal())
         root.addWidget(self.tabs, 1)
 
         self.teacher_table = table(["ID", "Name", "Email", "Department", "Status"])
@@ -1005,6 +1013,7 @@ class StudentHub(QMainWindow):
         cl.addWidget(topbar)
         self.stack = QStackedWidget()
         self.stack.setObjectName("pageStack")
+        self.page_motion = PageReveal(self.stack)
         cl.addWidget(self.stack, 1)
         shell.addWidget(content, 1)
 
@@ -1039,9 +1048,14 @@ class StudentHub(QMainWindow):
             scroll.setFrameShape(QFrame.NoFrame)
             scroll.setWidget(page)
             self.stack.addWidget(scroll)
+        # Sidebar controls share the same feedback as page actions.
+        for control in self.findChildren(QToolButton):
+            control.motion_feedback = InteractionFeedback(control)
         self.show_page("dashboard")
 
     def show_page(self, key):
+        changed = getattr(self, "current_page", None) != key
+        self.page_motion.cancel()
         self.stack.setCurrentIndex(list(self.pages).index(key))
         self.current_page = key
         self.update_output_tables()
@@ -1057,6 +1071,9 @@ class StudentHub(QMainWindow):
                 refresh()
             except Exception as e:
                 self.error(str(e))
+
+        if changed:
+            self.page_motion.reveal()
 
     def update_output_tables(self):
         self.output_table.clear()
