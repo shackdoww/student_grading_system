@@ -2,6 +2,12 @@
 
 A Python and PostgreSQL student information and grading system based on the project's UML design.
 
+The active desktop interface uses PySide6. Academic records and grading
+configuration can be maintained from the Academic page; referenced records
+are protected from deletion. Tables support CSV export and print preview.
+See [rubric alignment](docs/rubric_alignment.md) for verified coverage and
+outstanding finals-project requirements.
+
 ## Technologies
 
 - Python 3

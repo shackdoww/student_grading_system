@@ -30,8 +30,13 @@ def values(row, fields):
 
 
 class DataSnapshot:
+    def records(self):
+        """Detached values for editors; callers cannot mutate the cached snapshot."""
+        return {name: [dict(row) for row in rows] for name, rows in self._records.items()}
+
     def __init__(self, records=None):
         records = records or {name: [] for name in TABLES}
+        self._records = records
         self._students = sorted([values(r, 'student_id first_name last_name email program status')
                                  for r in records['students']], key=lambda r: (r[2], r[1]))
         self._student = {r[0]: r for r in self._students}

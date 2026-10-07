@@ -24,6 +24,8 @@ from app.services.grading_service import GradingService
 from app.services.school_data_import_service import SchoolDataImportService, DATASETS
 from app.services.score_service import ScoreService
 from app.services.student_service import StudentService
+from app.services.academic_service import AcademicService
+from app.gui.academic_editor import add_editor_actions
 
 
 BG = "#F5F7FA"
@@ -408,11 +410,16 @@ class AcademicPage(QWidget):
         self.subject_table = table(["ID", "Code", "Subject", "Units", "Description"])
         self.period_table = table(["ID", "Name", "Start", "End", "School Year", "Semester"])
         self.offering_table = table(["ID", "Class", "Subject", "Section", "Schedule", "Teacher", "Room"])
+        self.weight_table = table(["ID", "Percentage", "Class ID"])
+        self.component_table = table(["ID", "Name", "Type", "Maximum", "Description", "Period ID", "Weight ID"])
         for name, t in [("Teachers", self.teacher_table), ("Subjects", self.subject_table),
-                        ("Grading Periods", self.period_table), ("Class Offerings", self.offering_table)]:
+                        ("Grading Periods", self.period_table), ("Class Offerings", self.offering_table),
+                        ("Weights", self.weight_table), ("Components", self.component_table)]:
             card = Card()
             l = QVBoxLayout(card)
             l.setContentsMargins(14, 14, 14, 14)
+            add_editor_actions(l, self.app, name, t)
+            t.setProperty('outputTitle', name)
             l.addWidget(t)
             self.tabs.addTab(card, name)
 
@@ -425,6 +432,9 @@ class AcademicPage(QWidget):
             periods = self.app.data.periods()
             fill_table(self.period_table, [(r[0], r[1], r[2], r[3], r[4], r[5]) for r in periods])
             offerings = self.app.data.offerings()
+            records = self.app.data.records()
+            fill_table(self.weight_table, [(r['percentage_id'], r['percentage'], r['offering_id']) for r in records['grade_percentages']])
+            fill_table(self.component_table, [(r[k] for k in 'component_id name type max_score description period_id percentage_id'.split()) for r in records['grade_components']])
             fill_table(self.offering_table, [(r[0], r[1], r[11] + " — " + r[12], r[3], r[2], f"{r[8]} {r[9]}", r[6] or "—") for r in offerings])
         except Exception as e:
             self.app.error(str(e))
@@ -914,6 +924,7 @@ class StudentHub(BorderlessWindow):
         self.setMinimumSize(1000, 650)
 
         self.student_service = StudentService()
+        self.academic_service = AcademicService()
         self.enrollment_service = EnrollmentService()
         self.score_service = ScoreService()
         self.grading_service = GradingService()

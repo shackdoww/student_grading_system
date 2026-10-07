@@ -7,6 +7,10 @@ from app.repositories.teacher_repository import TeacherRepository
 
 
 class AcademicService:
+    def delete_unreferenced(self, table, identifier):
+        from app.repositories.protected_delete import delete_unreferenced
+        delete_unreferenced(table, identifier)
+
     def __init__(self):
         self.teachers = TeacherRepository()
         self.subjects = SubjectRepository()
