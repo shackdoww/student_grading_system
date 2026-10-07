@@ -4,6 +4,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 import app.gui.pyside_app as gui
+from tests.ui_helpers import admin_window
 from app.gui.data_snapshot import DataSnapshot
 
 
@@ -24,7 +25,7 @@ def test_cached_navigation_and_coalesced_reload(monkeypatch):
         return DataSnapshot()
 
     monkeypatch.setattr(gui, 'load_snapshot', loader)
-    window = gui.StudentHub()
+    window = admin_window()
     window.error = lambda message: (_ for _ in ()).throw(AssertionError(message))
     window.show()
     wait_until(lambda: window._data_version == 1)
@@ -43,7 +44,7 @@ def test_cached_navigation_and_coalesced_reload(monkeypatch):
 def test_save_invalidates_snapshot_and_failure_is_visible(monkeypatch):
     app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(gui, 'load_snapshot', DataSnapshot)
-    window = gui.StudentHub()
+    window = admin_window()
     window.show()
     messages, warnings, errors = [], [], []
     window.success = messages.append
@@ -73,7 +74,7 @@ def test_database_load_failure_is_reported(monkeypatch):
         raise RuntimeError('Database connection unavailable')
 
     monkeypatch.setattr(gui, 'load_snapshot', failed)
-    window = gui.StudentHub()
+    window = admin_window()
     errors = []
     window.error = errors.append
     window.show()

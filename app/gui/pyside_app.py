@@ -29,6 +29,10 @@ from app.services.academic_service import AcademicService
 from app.gui.academic_editor import add_editor_actions
 from app.gui.period_grading_dialog import PeriodPolicyDialog
 from app.gui.program_distribution import ProgramDistribution
+from app.gui.accounts import LoginDialog, AccountsPage, DataRecordsPage
+from app.services.account_service import AccountService, ROLES
+from app.services.access_control import AccessGuard, SecuredService, allowed, scope_snapshot
+from app.services.record_deletion_service import RecordDeletionService
 from app.services.period_grading_service import PeriodGradingService
 
 
@@ -1001,18 +1005,23 @@ class ImportPage(QWidget):
 class StudentHub(BorderlessWindow):
     data_loaded = Signal()
 
-    def __init__(self):
+    def __init__(self, session, auth_service=None):
         super().__init__()
+        self.session = session
+        self.auth = auth_service or AccountService()
+        self.account = self.auth.resolve(session)
+        self.guard = AccessGuard(self.auth, session)
+        self.deletion_service = RecordDeletionService(self.guard)
         self.setWindowTitle("Student Hub · Information & Grading")
         self.resize(1280, 800)
         self.setMinimumSize(1000, 650)
 
-        self.student_service = StudentService()
-        self.academic_service = AcademicService()
-        self.period_service = PeriodGradingService()
-        self.enrollment_service = EnrollmentService()
-        self.score_service = ScoreService()
-        self.grading_service = GradingService()
+        self.student_service = SecuredService(StudentService(), self.guard)
+        self.academic_service = SecuredService(AcademicService(), self.guard)
+        self.period_service = SecuredService(PeriodGradingService(), self.guard)
+        self.enrollment_service = SecuredService(EnrollmentService(), self.guard, {'save': ('enrollments', None)})
+        self.score_service = SecuredService(ScoreService(), self.guard)
+        self.grading_service = SecuredService(GradingService(), self.guard)
 
         self.data = DataSnapshot()
         self.jobs = BackgroundJobs(self)
@@ -1023,11 +1032,35 @@ class StudentHub(BorderlessWindow):
         self._data_version = 0
         self._rendered_versions = {}
         self.build_ui()
+        self.apply_permissions()
         QTimer.singleShot(0, self.reload_data)
         self.auto_refresh = QTimer(self)
         self.auto_refresh.setInterval(60000)
         self.auto_refresh.timeout.connect(self.reload_data)
         self.auto_refresh.start()
+
+    def can(self, action):
+        return allowed(self.account['role'], action)
+
+    def apply_permissions(self):
+        actions = {'Add student': 'students', 'Enroll Student': 'enrollments',
+                   'Record Score': 'scores', 'Save Legacy Grade': 'grades',
+                   'Save Period Grades': 'grades', 'Period Setup': 'grading'}
+        for control in self.findChildren(QPushButton):
+            if control.text() in actions:
+                control.setEnabled(self.can(actions[control.text()]))
+        self.nav_buttons['import'].setVisible(self.can('import'))
+        self.import_page.service = SecuredService(self.import_page.service, self.guard, {
+            'read_folder': ('import', None), 'validate': ('import', None)})
+
+    def sign_out(self):
+        if self._writing:
+            self.warning('Wait for the current save before signing out.')
+            return
+        def done(_):
+            self._signed_out = True
+            self.close()
+        self.jobs.submit(lambda: self.auth.logout(self.session), done, self.error)
 
     def build_ui(self):
         central = QWidget()
@@ -1071,6 +1104,8 @@ class StudentHub(BorderlessWindow):
             ("roster", "Class / Section", "graduation-cap.svg"),
             ("import", "Data Import", "upload.svg"),
         ]
+        if self.can('accounts'):
+            items.extend([('accounts', 'Accounts', 'users-round.svg'), ('records', 'Data Records', 'file-text.svg')])
         for key, text, icon_name in items:
             if key in ("academic", "import"):
                 nl.addSpacing(14)
@@ -1096,19 +1131,27 @@ class StudentHub(BorderlessWindow):
         il.setContentsMargins(14, 12, 14, 12)
         il.setSpacing(5)
         il.addWidget(styled_label("YOUR WORKSPACE", "identityEyebrow"))
-        identity_title = QLabel("School workspace")
+        identity_title = QLabel(self.account['full_name'])
         identity_title.setObjectName("identityTitle")
         identity_title.setWordWrap(True)
         il.addWidget(identity_title)
-        identity_meta = QLabel("Students · Classes · Grades")
+        identity_meta = QLabel(ROLES[self.account['role']])
         identity_meta.setObjectName("identityMeta")
         il.addWidget(identity_meta)
         nl.addWidget(identity)
+        nl.addWidget(button('Sign out', self.sign_out, compact=True))
 
         nl.addSpacing(10)
 
 
-        shell.addWidget(nav)
+        sidebar_scroll = QScrollArea()
+        sidebar_scroll.setObjectName('sidebarScroll')
+        sidebar_scroll.setWidgetResizable(True)
+        sidebar_scroll.setFrameShape(QFrame.NoFrame)
+        sidebar_scroll.setFixedWidth(220)
+        sidebar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sidebar_scroll.setWidget(nav)
+        shell.addWidget(sidebar_scroll)
 
         content = QFrame()
         content.setObjectName("content")
@@ -1151,7 +1194,7 @@ class StudentHub(BorderlessWindow):
             ("dashboard", self.dashboard), ("grades", self.grades), ("reports", self.reports),
             ("academic", self.academic), ("enrollments", self.enrollments),
             ("roster", self.roster), ("import", self.import_page)
-        ]:
+        ] + ([('accounts', AccountsPage(self, table, fill_table)), ('records', DataRecordsPage(self, table, fill_table))] if self.can('accounts') else []):
             page.setObjectName("workspacePage")
             names = {"student_table": "Students", "teacher_table": "Teachers",
                      "subject_table": "Subjects", "period_table": "Grading periods",
@@ -1159,7 +1202,7 @@ class StudentHub(BorderlessWindow):
                      "list": "Student report" if key == "reports" else "Enrollments"}
             for attribute, name in names.items():
                 widget = getattr(page, attribute, None)
-                if isinstance(widget, QTableWidget):
+                if isinstance(widget, QTableWidget) and not widget.property('outputTitle'):
                     widget.setProperty("outputTitle", name)
             for combo in page.findChildren(QComboBox):
                 combo.setMinimumContentsLength(12)
@@ -1177,6 +1220,9 @@ class StudentHub(BorderlessWindow):
         self.show_page("dashboard")
 
     def show_page(self, key):
+        if key == 'import' and not self.can('import'):
+            self.warning('Only an Admin can import school data.')
+            return
         changed = getattr(self, "current_page", None) != key
         self.page_motion.cancel()
         self.stack.setCurrentIndex(list(self.pages).index(key))
@@ -1240,7 +1286,13 @@ class StudentHub(BorderlessWindow):
             return
         self._loading = True
         self.title_bar.status.setText("Updating school data…")
-        self.jobs.submit(load_snapshot, self.accept_snapshot, self.load_failed)
+        def read():
+            try:
+                account = self.auth.resolve(self.session)
+            except PermissionError as error:
+                raise PermissionError('Signed out: ' + str(error)) from error
+            return scope_snapshot(load_snapshot(), account)
+        self.jobs.submit(read, self.accept_snapshot, self.load_failed)
 
     def accept_snapshot(self, snapshot):
         self._loading = False
@@ -1259,6 +1311,10 @@ class StudentHub(BorderlessWindow):
         self._loading = False
         self._reload_again = False
         self.title_bar.status.setText("Could not update school data")
+        if message.startswith('Signed out:'):
+            self.data = DataSnapshot()
+            self.stack.setEnabled(False)
+            self.stack.hide()
         self.error(message)
 
     def run_write(self, operation, message, after=None, on_failure=None):
@@ -1312,6 +1368,7 @@ QWidget {{ color: {TEXT}; font-family: "Segoe UI"; font-size: 13px; }}
 QWidget#window, QWidget#workspacePage, QStackedWidget, QScrollArea {{ background: {BG}; }}
 QLabel {{ background: transparent; }}
 QFrame#sidebar {{ background: white; border: 0; border-radius: 0; }}
+QScrollArea#sidebarScroll {{ background: white; }}
 QFrame#content {{ background: {BG}; border: 0; }}
 QFrame#topbar {{ background: {SURFACE}; border-bottom: 1px solid {BORDER}; min-height: 64px; max-height: 64px; }}
 QLabel#topbarContext, QLabel#brandMeta {{ color: #93A4C3; font-size: 10px; font-weight: 700; letter-spacing: 1px; }}
@@ -1392,6 +1449,17 @@ def run():
     app = QApplication.instance() or QApplication(sys.argv)
     app.setStyle("Fusion")
     app.setStyleSheet(STYLE)
-    window = StudentHub()
-    window.show()
-    return app.exec()
+    auth = AccountService()
+    while True:
+        login = LoginDialog(auth)
+        if login.exec() != QDialog.Accepted:
+            return 0
+        try:
+            window = StudentHub(login.token, auth)
+        except Exception as error:
+            QMessageBox.critical(None, 'Unable to open Student Hub', str(error))
+            return 1
+        window.show()
+        result = app.exec()
+        if not getattr(window, '_signed_out', False):
+            return result

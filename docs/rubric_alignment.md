@@ -62,8 +62,11 @@ GUI code is recoverable from Git. Tests enforce the absence of Tkinter imports.
   repository write tests in an isolated test database.
 - A complete automated create-class-to-print-grade-sheet end-to-end scenario.
 
-Audit logs and user accounts are recommended extensions in the rubric, not
-minimum core requirements. No accounts or schema changes were added here.
+User accounts and role-scoped application access are now implemented through
+additive migration 003. Security events cover account management and explicit
+record deletion. Comprehensive raw score/grade change auditing remains a future
+extension; these security events do not claim to be that full grade-change log.
+See `accounts_and_roles.md` for scope and local desktop security limitations.
 
 ## Verification
 

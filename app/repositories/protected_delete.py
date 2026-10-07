@@ -4,7 +4,7 @@ from app.database.connection import get_connection
 
 
 TARGETS = {
-    'teachers': ('teacher_id', [('class_offerings', 'teacher_id')]),
+    'teachers': ('teacher_id', [('class_offerings', 'teacher_id'), ('user_accounts', 'teacher_id')]),
     'subjects': ('subject_id', [('class_offerings', 'subject_id')]),
     'grading_periods': ('period_id', [('grade_components', 'period_id'), ('grading_policies', 'midterm_period_id'), ('grading_policies', 'final_period_id')]),
     'class_offerings': ('offering_id', [('enrollments', 'offering_id'), ('grade_percentages', 'offering_id'), ('grading_policies', 'offering_id')]),

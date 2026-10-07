@@ -26,6 +26,9 @@ def main():
             migration = (root / 'app/database/migration_002_period_grading.sql').read_text(encoding='utf-8')
             connection.execute(migration)
             connection.execute(migration)  # Repeatable installation.
+            accounts_migration = (root / 'app/database/migration_003_accounts.sql').read_text(encoding='utf-8')
+            connection.execute(accounts_migration)
+            connection.execute(accounts_migration)
             connection.execute('INSERT INTO students VALUES (%s,%s,%s,%s,%s,%s)', ('S', 'Test', 'Student', 'test@example.test', 'CS', 'Active'))
             connection.execute('INSERT INTO teachers VALUES (%s,%s,%s,%s,%s,%s)', ('T', 'Test', 'Teacher', 'teacher@example.test', 'CS', 'Active'))
             connection.execute('INSERT INTO subjects VALUES (%s,%s,%s,%s,%s)', ('SUB', 'CS', 'Computing', '', 3))
@@ -68,13 +71,14 @@ def main():
         from app.gui.data_snapshot import load_snapshot
         from app.gui.period_grading_dialog import PeriodPolicyDialog
         from app.gui.table_output import table_data
+        from tests.ui_helpers import admin_window
         with patch('app.gui.data_snapshot.get_connection', connect):
             snapshot = load_snapshot()
         app = QApplication.instance() or QApplication([])
         app.setStyle('Fusion')
         app.setStyleSheet(gui.STYLE)
         with patch.object(gui, 'load_snapshot', lambda: snapshot):
-            window = gui.StudentHub()
+            window = admin_window()
             window.error = lambda message: (_ for _ in ()).throw(AssertionError(message))
             window.show()
             for _ in range(100):
@@ -126,6 +130,8 @@ def main():
         with connect() as connection:
             assert connection.execute('SELECT enrollment_id FROM enrollments WHERE student_id=%s', ('S',)).fetchone()[0] == 'E'
         print('Automatic enrollment IDs, duplicate protection and hidden grading links passed.')
+        from tests.verify_accounts import verify_accounts
+        verify_accounts(connect)
         print('PySide6 period setup, grade sheet export values and student report passed.')
         print('Migration repeatability, configured calculation, persistence, recalculation, invalid-policy rollback and legacy preservation passed.')
     finally:

@@ -71,12 +71,15 @@ class RecordDialog(QDialog):
 
 def add_editor_actions(layout, app, name, table):
     actions = QHBoxLayout()
+    permission = 'grading' if name in ['Weights', 'Components'] else 'academic'
     for label, editing in [('Add', False), ('Edit selected', True)]:
         control = QPushButton(label)
+        control.setEnabled(app.can(permission))
         control.clicked.connect(lambda checked=False, edit=editing: edit_record(app, name, table, edit))
         actions.addWidget(control)
     actions.addStretch()
     delete = QPushButton('Delete selected')
+    delete.setEnabled(app.can('delete'))
     delete.clicked.connect(lambda: delete_record(app, name, table))
     actions.addWidget(delete)
     layout.addLayout(actions)

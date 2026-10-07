@@ -10,6 +10,9 @@ are protected from deletion. Tables support CSV export and print preview.
 See [rubric alignment](docs/rubric_alignment.md) for verified coverage and
 outstanding finals-project requirements.
 
+The app now requires a school account. See [accounts and roles](docs/accounts_and_roles.md)
+for first-Admin setup, permissions and manual deletion controls.
+
 ## Technologies
 
 - Python 3
@@ -75,6 +78,8 @@ If the database already exists, do not rerun `schema.sql` because it recreates t
    Then apply `app/database/migration_002_period_grading.sql` to add period
    grading tables. On an existing database, apply only the migration; do not
    recreate the schema. The migration can safely be run more than once.
+   Also apply `app/database/migration_003_accounts.sql` (or run
+   `python -m app.database.apply_migration --accounts`) before launching.
 3. Create a local `.env` file:
 
 ```env

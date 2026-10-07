@@ -11,6 +11,7 @@ from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from app.gui.pyside_app import StudentHub, StudentDialog, ScoreDialog, STYLE
+from tests.ui_helpers import admin_window
 from app.gui.table_output import table_data, report_html, write_csv
 
 
@@ -22,7 +23,7 @@ def main():
     original = StudentHub.error
     StudentHub.error = lambda self, message: errors.append(message)
     started = perf_counter()
-    window = StudentHub()
+    window = admin_window()
     print(f'Window construction: {perf_counter() - started:.3f}s')
     StudentHub.error = original
     window.error = lambda message: errors.append(message)
@@ -53,6 +54,9 @@ def main():
         QTest.qWait(260)
         window.grab().save(str(Path(folder) / 'dashboard.png'))
         if len(sys.argv) > 1:
+            if len(sys.argv) > 2:
+                window.show_page(sys.argv[2])
+                QTest.qWait(260)
             window.grab().save(sys.argv[1])
         headers, rows = table_data(window.dashboard.student_table)
         write_csv(Path(folder) / 'students.csv', headers, rows)
