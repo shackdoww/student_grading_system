@@ -2,7 +2,9 @@
 
 A Python and PostgreSQL student information and grading system based on the project's UML design.
 
-The active desktop interface uses PySide6. Academic records and grading
+`main.py` is the only application launch entry point. The desktop interface
+uses PySide6; unused compatibility launchers and Tkinter windows have been removed.
+Academic records and grading
 configuration can be maintained from the Academic page; referenced records
 are protected from deletion. Tables support CSV export and print preview.
 See [rubric alignment](docs/rubric_alignment.md) for verified coverage and
@@ -22,20 +24,26 @@ outstanding finals-project requirements.
 ```
 app/
 ├── calculator/
-│   └── grade_calculator.py
+│   ├── grade_calculator.py
+│   └── period_calculator.py
 ├── database/
 │   ├── connection.py
-│   └── schema.sql
+│   ├── schema.sql
+│   └── migration_*.sql
+├── gui/
+│   ├── pyside_app.py
+│   ├── academic_editor.py
+│   ├── period_grading_dialog.py
+│   ├── program_distribution.py
+│   └── assets/icons/
 ├── repositories/
-│   ├── enrollment_repository.py
-│   ├── grade_repository.py
-│   ├── score_repository.py
-│   └── student_repository.py
+│   └── PostgreSQL repositories
 └── services/
-    └── grading_service.py
+    └── validated application workflows
 
 main.py
 requirements.txt
+tests/
 ```
 
 ## Backend Architecture
@@ -53,6 +61,8 @@ PostgreSQL
 ```
 
 Python services handle application rules and validation. Repositories handle SQL access. PostgreSQL stores the data and enforces database constraints.
+The dashboard program-distribution chart uses the loaded student records,
+not sample statistics. Its animation respects `STUDENT_HUB_REDUCED_MOTION=1`.
 
 ## Applying the Existing-Database Migration
 

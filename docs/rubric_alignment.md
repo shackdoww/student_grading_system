@@ -52,6 +52,11 @@ This is integration/UI evidence, not a complete mouse-driven end-to-end test.
 
 ## Outstanding requirements
 
+The application now has one launcher, `main.py`. Unreferenced compatibility
+launchers and legacy Tkinter windows were removed after checking their imports.
+Existing application services and PostgreSQL mappings were retained; historic
+GUI code is recoverable from Git. Tests enforce the absence of Tkinter imports.
+
 - Student and enrollment edit/delete controls with the same evidence safeguards.
 - Explicit domain values/interfaces, complete CRC/UML/ERD documentation, and
   repository write tests in an isolated test database.

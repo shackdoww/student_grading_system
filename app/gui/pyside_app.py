@@ -28,6 +28,7 @@ from app.services.student_service import StudentService
 from app.services.academic_service import AcademicService
 from app.gui.academic_editor import add_editor_actions
 from app.gui.period_grading_dialog import PeriodPolicyDialog
+from app.gui.program_distribution import ProgramDistribution
 from app.services.period_grading_service import PeriodGradingService
 
 
@@ -104,10 +105,15 @@ class StatCard(Card):
         top = QHBoxLayout()
         title = QLabel(label)
         self.setObjectName("statCard")
-        self.setStyleSheet(f"QFrame#statCard {{ background: {accent}; border: 0; }} "
+        lighter = QColor(accent).lighter(118).name()
+        self.setStyleSheet(f"QFrame#statCard {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {accent},stop:1 {lighter}); border: 0; }} "
                            "QFrame#statCard QLabel { color: white; background: transparent; }")
         title.setObjectName("eyebrow")
         dot = QLabel()
+        dot.setObjectName('statIcon')
+        dot.setFixedSize(42, 42)
+        dot.setAlignment(Qt.AlignCenter)
+        dot.setStyleSheet('QLabel#statIcon {background:rgba(255,255,255,24);border-radius:12px;}')
         icon_name = {"Students": "users-round.svg", "Enrollments": "file-text.svg",
                      "Teachers": "graduation-cap.svg", "Class Offerings": "book-open.svg"}.get(label, "chart.svg")
         dot.setPixmap(sidebar_icon(icon_name, "#FFFFFF", 28).pixmap(28, 28))
@@ -275,7 +281,10 @@ class DashboardPage(QWidget):
         st.setObjectName("cardTitle")
         sh.addWidget(st)
         sh.addStretch()
-        refresh = button("↻", self.app.reload_data, False, True)
+        refresh = button("", self.app.reload_data, False, True)
+        refresh.setIcon(sidebar_icon('refresh-cw.svg', MUTED))
+        refresh.setToolTip('Refresh school data')
+        refresh.setAccessibleName('Refresh school data')
         refresh.setFixedWidth(42)
         sh.addWidget(refresh)
         sl.addLayout(sh)
@@ -294,6 +303,11 @@ class DashboardPage(QWidget):
         il = QVBoxLayout(selected)
         il.setContentsMargins(20, 20, 20, 20)
         il.addWidget(styled_label("SELECTED STUDENT", "eyebrow"))
+        self.student_badge = QLabel('SH')
+        self.student_badge.setFixedSize(40, 40)
+        self.student_badge.setAlignment(Qt.AlignCenter)
+        self.student_badge.setStyleSheet(f'background:{PURPLE_SOFT};color:{PURPLE};border-radius:12px;font-weight:700;')
+        il.addWidget(self.student_badge)
         self.selected_name = QLabel("Select a student")
         self.selected_name.setObjectName("cardTitle")
         il.addWidget(self.selected_name)
@@ -303,6 +317,7 @@ class DashboardPage(QWidget):
         il.addWidget(self.selected_info)
         self.grade_label = QLabel("—")
         self.grade_label.setObjectName("heroGrade")
+        il.addWidget(styled_label('Legacy grade average', 'subtitle'))
         il.addWidget(self.grade_label)
         self.enrollment_label = QLabel("No enrollment selected")
         self.enrollment_label.setObjectName("subtitle")
@@ -310,15 +325,23 @@ class DashboardPage(QWidget):
         il.addStretch()
         side.addWidget(selected, 2)
 
-        quick = Card()
+        quick = QWidget()
         ql = QVBoxLayout(quick)
-        ql.setContentsMargins(20, 18, 20, 18)
-        ql.addWidget(styled_label("QUICK ACTIONS", "eyebrow"))
-        ql.addWidget(button("View Class Grades", lambda: self.app.show_page("grades")))
-        ql.addWidget(button("Open Academic", lambda: self.app.show_page("academic")))
-        ql.addWidget(button("Manage Enrollments", lambda: self.app.show_page("enrollments")))
-        ql.addWidget(button("Student Report", self.open_report))
-        side.addWidget(quick, 1)
+        ql.setContentsMargins(0, 0, 0, 0)
+        quick_grid = QGridLayout()
+        quick_grid.addWidget(button("Class Grades", lambda: self.app.show_page("grades"), compact=True), 0, 0)
+        quick_grid.addWidget(button("Academic", lambda: self.app.show_page("academic"), compact=True), 0, 1)
+        quick_grid.addWidget(button("Enrollments", lambda: self.app.show_page("enrollments"), compact=True), 0, 2)
+        quick_grid.addWidget(button("Report", self.open_report, compact=True), 0, 3)
+        ql.addLayout(quick_grid)
+        sl.insertWidget(sl.indexOf(self.student_table), quick)
+        programs = Card()
+        program_layout = QVBoxLayout(programs)
+        program_layout.setContentsMargins(20, 16, 20, 16)
+        program_layout.addWidget(styled_label('PROGRAM DISTRIBUTION', 'eyebrow'))
+        self.program_distribution = ProgramDistribution()
+        program_layout.addWidget(self.program_distribution)
+        side.addWidget(programs)
         workspace.addLayout(side, 1)
         root.addLayout(workspace, 1)
 
@@ -326,6 +349,7 @@ class DashboardPage(QWidget):
         try:
             students = self.app.data.students()
             self._students = students
+            self.program_distribution.set_counts(students)
             self.filter_students()
             self.students_stat.setValue(len(students))
             self.enrollments_stat.setValue(self.app.enrollment_repo_count())
@@ -348,6 +372,7 @@ class DashboardPage(QWidget):
         else:
             self.selected_student = None
             self.selected_name.setText("No student selected")
+            self.student_badge.setText('SH')
             self.selected_info.setText("Add a student or adjust your search.")
             self.grade_label.setText("—")
             self.enrollment_label.setText("No enrollments selected")
@@ -361,6 +386,7 @@ class DashboardPage(QWidget):
             student = self.app.data.student(sid)
             self.selected_student = sid
             self.selected_name.setText(f"{student[1]} {student[2]}")
+            self.student_badge.setText((student[1][:1] + student[2][:1]).upper())
             self.selected_info.setText(f"{student[0]}  ·  {student[4]}  ·  {student[3]}  ·  {student[5]}")
             enrollments = self.app.data.enrollments_for_student(sid)
             self.enrollment_label.setText(f"{len(enrollments)} enrollment(s)")
@@ -1369,7 +1395,3 @@ def run():
     window = StudentHub()
     window.show()
     return app.exec()
-
-
-if __name__ == "__main__":
-    raise SystemExit(run())
