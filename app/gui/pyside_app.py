@@ -1250,6 +1250,26 @@ QPushButton[primary="true"]:hover {{ background: {PURPLE_HOVER}; }}
 QPushButton[compact="true"] {{ padding: 6px 9px; }}
 QLineEdit, QComboBox, QDateEdit {{ background: {SURFACE}; color: {TEXT}; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 10px; min-height: 18px; }}
 QLineEdit:focus, QComboBox:focus, QDateEdit:focus {{ border: 1px solid {PURPLE}; background: white; }}
+QComboBox QAbstractItemView {{
+    background-color: {SURFACE};
+    color: {TEXT};
+    selection-background-color: {PURPLE_SOFT};
+    selection-color: {TEXT};
+    border: 1px solid {BORDER};
+    outline: 0;
+    padding: 4px;
+}}
+QComboBox QAbstractItemView::item {{
+    background-color: {SURFACE};
+    color: {TEXT};
+    min-height: 28px;
+    padding: 5px 10px;
+}}
+QComboBox QAbstractItemView::item:selected,
+QComboBox QAbstractItemView::item:hover {{
+    background-color: {PURPLE_SOFT};
+    color: {TEXT};
+}}
 QTableWidget {{ background: {SURFACE}; border: 0; border-radius: 8px; alternate-background-color: #F8FAFC; selection-background-color: {PURPLE_SOFT}; selection-color: {TEXT}; gridline-color: transparent; outline: 0; }}
 QHeaderView::section {{ background: #F8FAFC; color: {MUTED}; border: 0; border-bottom: 1px solid {BORDER}; padding: 11px 10px; font-size: 10px; font-weight: 800; }}
 QTableWidget::item {{ padding: 10px; border-bottom: 1px solid #EEF2F6; }}
