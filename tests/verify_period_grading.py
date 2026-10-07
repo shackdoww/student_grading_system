@@ -84,7 +84,20 @@ def main():
             window.show_page('grades')
             page = window.pages['grades']
             assert page.grade_sheet.rowCount() == 1
+            assert page.roster.item(0, 0).text() == 'S'
+            assert page.roster.item(0, 0).data(gui.ENROLLMENT_ROLE) == 'E'
+            from unittest.mock import MagicMock
+            window.grading_service = MagicMock()
+            window.period_service = MagicMock()
+            window.run_write = lambda operation, message: operation()
+            page.roster.selectRow(0)
+            page.save_grade()
+            page.save_period_grades()
+            window.grading_service.calculate_and_save_grade.assert_called_once_with('E')
+            window.period_service.calculate_and_save.assert_called_once_with('E')
+            assert not hasattr(window.enrollments, 'enrollment_id')
             headers, rows = table_data(page.grade_sheet)
+            assert 'Enrollment' not in headers
             assert rows[0][headers.index('Overall')] == '84.00%'
             assert 'Saved results match' in rows[0][-1]
             dialog = PeriodPolicyDialog(window, 'O', snapshot.records())
@@ -94,8 +107,25 @@ def main():
             dialog.close()
             window.show_page('reports')
             report = window.pages['reports']
-            assert report.list.item(0, 9).text() == '84.00%'
+            assert report.list.item(0, 8).text() == '84.00%'
             window.close()
+        from app.services.enrollment_service import EnrollmentService
+        with connect() as connection:
+            connection.execute('INSERT INTO students VALUES (%s,%s,%s,%s,%s,%s)', ('S2', 'Another', 'Student', 'second@example.test', 'CS', 'Active'))
+        with patch('app.repositories.student_repository.get_connection', connect), \
+             patch('app.repositories.class_offering_repository.get_connection', connect), \
+             patch('app.repositories.enrollment_repository.get_connection', connect):
+            enrollment_service = EnrollmentService()
+            generated = enrollment_service.enroll('S2', 'O')
+            assert enrollment_service.get(generated)[0] == generated
+            try:
+                enrollment_service.enroll('S2', 'O')
+                raise AssertionError('Duplicate enrollment was accepted')
+            except ValueError as error:
+                assert 'already enrolled' in str(error)
+        with connect() as connection:
+            assert connection.execute('SELECT enrollment_id FROM enrollments WHERE student_id=%s', ('S',)).fetchone()[0] == 'E'
+        print('Automatic enrollment IDs, duplicate protection and hidden grading links passed.')
         print('PySide6 period setup, grade sheet export values and student report passed.')
         print('Migration repeatability, configured calculation, persistence, recalculation, invalid-policy rollback and legacy preservation passed.')
     finally:

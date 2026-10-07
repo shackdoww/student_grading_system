@@ -109,6 +109,13 @@ The calculator converts each component score to a percentage, averages component
 
 ## Midterm Final and Overall grades
 
+Enrollment IDs are internal: the Enrollments page generates a unique ID when
+creating each student/class link. Select a student, class offering and status;
+there is no ID to type. Existing enrollment IDs are preserved. Ordinary rosters,
+reports and exports show student numbers instead. Grade actions use a hidden
+enrollment key, and score IDs are also generated automatically. CSV import
+retains explicit identifiers for linking imported datasets.
+
 The legacy calculation and saved grades remain unchanged. For the separate
 period workflow, create components for two grading periods matching the class
 school year and semester. In Class Grades, choose **Period Setup**, select the

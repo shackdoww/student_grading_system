@@ -140,6 +140,14 @@ class EnrollmentRepository:
             cursor.close()
             connection.close()
 
+    def create(self, enrollment_id, enroll_date, status, student_id, offering_id):
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute('''INSERT INTO enrollments
+                    (enrollment_id,enroll_date,status,student_id,offering_id)
+                    VALUES (%s,%s,%s,%s,%s)''',
+                    (enrollment_id, enroll_date, status, student_id, offering_id))
+
     def delete(self, enrollment_id):
         connection = get_connection()
         cursor = connection.cursor()
