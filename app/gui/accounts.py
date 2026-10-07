@@ -1,7 +1,7 @@
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QVBoxLayout, QFormLayout,
     QLabel, QLineEdit, QComboBox, QPushButton, QWidget, QHBoxLayout, QMessageBox,
-    QTableWidget, QTableWidgetItem, QAbstractItemView)
+    QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView)
 from app.gui.background import BackgroundJobs
 from app.services.account_service import ROLES
 from app.services.record_deletion_service import DELETABLE
@@ -211,29 +211,92 @@ class DataRecordsPage(QWidget):
             self.kind.addItem(name.replace('_', ' ').title(), name)
         self.kind.currentIndexChanged.connect(self.refresh)
         root.addWidget(self.kind)
+        actions = QHBoxLayout()
+        self.select_all = QPushButton('Select all')
+        self.clear_selection = QPushButton('Clear selection')
+        self.select_all.clicked.connect(lambda: self.set_checked(True))
+        self.clear_selection.clicked.connect(lambda: self.set_checked(False))
+        actions.addWidget(self.select_all)
+        actions.addWidget(self.clear_selection)
+        actions.addStretch()
+        self.selection_count = QLabel('0 selected')
+        actions.addWidget(self.selection_count)
+        root.addLayout(actions)
         self.list = table_factory(['Records'])
+        self.list.itemChanged.connect(self.update_selection)
         self.list.setProperty('outputTitle', 'Data records')
         root.addWidget(self.list, 1)
-        delete = QPushButton('Delete selected record permanently')
-        delete.clicked.connect(self.delete)
-        root.addWidget(delete)
+        self.delete_button = QPushButton('Delete selected records permanently')
+        self.delete_button.setEnabled(False)
+        self.delete_button.clicked.connect(self.delete)
+        root.addWidget(self.delete_button)
         self.rows = []
+        self._dataset = None
+
+    def checked_keys(self):
+        return [self.list.item(row, 0).data(Qt.UserRole)
+                for row in range(self.list.rowCount())
+                if self.list.item(row, 0) is not None
+                and self.list.item(row, 0).checkState() == Qt.Checked]
+
+    def update_selection(self, *_):
+        count = len(self.checked_keys())
+        self.selection_count.setText(f'{count} of {self.list.rowCount()} selected')
+        self.delete_button.setEnabled(count > 0)
+        self.select_all.setEnabled(self.list.rowCount() > 0)
+        self.clear_selection.setEnabled(count > 0)
+
+    def set_checked(self, checked):
+        blocked = self.list.blockSignals(True)
+        for row in range(self.list.rowCount()):
+            self.list.item(row, 0).setCheckState(Qt.Checked if checked else Qt.Unchecked)
+        self.list.blockSignals(blocked)
+        self.update_selection()
 
     def refresh(self):
         name = self.kind.currentData()
+        selected = set(self.checked_keys()) if name == self._dataset else set()
+        self._dataset = name
         self.rows = self.app.data.records()[name]
         fields = list(self.rows[0]) if self.rows else [DELETABLE[name][0]]
-        self.list.setColumnCount(len(fields))
-        self.list.setHorizontalHeaderLabels([k.replace('_', ' ').title() for k in fields])
-        self.fill_table(self.list, [[row[k] for k in fields] for row in self.rows])
+        blocked = self.list.blockSignals(True)
+        self.list.setColumnCount(len(fields) + 1)
+        self.list.setHorizontalHeaderLabels(['Select'] + [k.replace('_', ' ').title() for k in fields])
+        self.fill_table(self.list, [[''] + [row[k] for k in fields] for row in self.rows])
+        key_field = DELETABLE[name][0]
+        for index, row in enumerate(self.rows):
+            item = self.list.item(index, 0)
+            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsUserCheckable)
+            item.setData(Qt.UserRole, row[key_field])
+            item.setToolTip(f'Select {row[key_field]} for deletion')
+            item.setCheckState(Qt.Checked if row[key_field] in selected else Qt.Unchecked)
+        self.list.horizontalHeader().setMinimumSectionSize(52)
+        self.list.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.list.horizontalHeader().setSectionResizeMode(len(fields), QHeaderView.Stretch)
+        self.list.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
+        self.list.setColumnWidth(0, 64)
+        self.list.blockSignals(blocked)
+        self.update_selection()
 
     def delete(self):
-        row = self.list.currentRow()
-        if row < 0 or row >= len(self.rows):
+        keys = tuple(self.checked_keys())
+        if not keys:
             return
         name = self.kind.currentData()
-        key = self.rows[row][DELETABLE[name][0]]
         related = '\nThis also removes the policy’s category-weight configuration.' if name == 'grading_policies' else ''
-        if QMessageBox.question(self, 'Permanent deletion', f'Delete {name}: {key}?{related}\nThis cannot be undone. No backup will be made.', QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+        confirmation = QMessageBox(self)
+        confirmation.setWindowTitle('Permanent batch deletion')
+        confirmation.setIcon(QMessageBox.Warning)
+        confirmation.setText(f'Delete {len(keys)} selected {name.replace("_", " ")} record(s)?')
+        preview = ', '.join(str(key) for key in keys[:10])
+        if len(keys) > 10:
+            preview += f' and {len(keys) - 10} more (see details)'
+        confirmation.setInformativeText(f'{preview}{related}\nThis cannot be undone. No backup will be made.\nIf any record is blocked, the entire batch will be cancelled.')
+        confirmation.setDetailedText('\n'.join(str(key) for key in keys))
+        confirmation.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        confirmation.setDefaultButton(QMessageBox.No)
+        if confirmation.exec() != QMessageBox.Yes:
             return
-        self.app.run_write(lambda: self.app.deletion_service.delete(name, key), 'Record deleted.')
+        self.app.run_write(lambda: self.app.deletion_service.delete_many(name, keys),
+                           lambda count: f'{count} record(s) deleted.',
+                           lambda _: self.set_checked(False))

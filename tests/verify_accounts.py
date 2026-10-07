@@ -60,6 +60,21 @@ def verify_accounts(connect):
         assert connection.execute('SELECT count(*) FROM grades').fetchone()[0] == 0
         assert connection.execute("SELECT count(*) FROM security_events WHERE action='record.deleted'").fetchone()[0] == 1
         assert connection.execute('SELECT count(*) FROM grade_component_scores').fetchone()[0] == 2
+    # Both deleted rows and their audit entries roll back if a later row fails.
+    with connect() as connection:
+        for key in ['B1', 'B2']:
+            connection.execute('INSERT INTO students VALUES (%s,%s,%s,%s,%s,%s)',
+                               (key, 'Batch', 'Test', key + '@example.test', 'CS', 'Active'))
+    rejected(lambda: deletion.delete_many('students', ['B1', 'S']), ValueError)
+    rejected(lambda: deletion.delete_many('students', ['B1', 'MISSING']), ValueError)
+    with connect() as connection:
+        assert connection.execute("SELECT count(*) FROM students WHERE student_id IN ('B1','B2')").fetchone()[0] == 2
+        assert connection.execute("SELECT count(*) FROM security_events WHERE target='students:B1'").fetchone()[0] == 0
+    assert deletion.delete_many('students', ['B1', 'B2', 'B1']) == 2
+    with connect() as connection:
+        assert connection.execute("SELECT count(*) FROM students WHERE student_id IN ('B1','B2')").fetchone()[0] == 0
+        assert connection.execute("SELECT count(*) FROM security_events WHERE target IN ('students:B1','students:B2')").fetchone()[0] == 2
+    rejected(lambda: RecordDeletionService(guard).delete_many('students', ['S']))
     accounts = auth.list_accounts(admin)
     assert not any('password_hash' in row for row in accounts)
     auth.set_active(admin, teacher_id, False)

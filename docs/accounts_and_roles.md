@@ -49,10 +49,16 @@ and [OWASP authorization](https://cheatsheetseries.owasp.org/cheatsheets/Authori
 
 ## Manual deletion through the app
 
-Only Admins see Data Records. Select a record type and a row, then choose Delete
-selected record permanently and confirm. No backup is made and there is no undo.
-Deletion is audited in the same transaction. Dependencies block deletion;
-the app never automatically cascades away raw academic evidence.
+Only Admins see Data Records. Select a record type and check the rows to remove.
+Select all checks every record in the current dataset (including off-screen
+rows); Clear selection unchecks them. The counter shows the selected total.
+Selections survive refreshes, but never carry over to a different dataset.
+Choose Delete selected records permanently to review the count, record IDs,
+and full list under Show Details. Confirmation defaults to No.
+No backup is made and there is no undo. Each deletion is audited in the same
+transaction. A batch is all-or-nothing: a missing record, dependency or database
+error rolls back the whole batch, including its audit entries. Dependencies
+block deletion; the app never automatically cascades away raw academic evidence.
 
 To clear school records, delete period results and saved grades, then raw scores,
 then enrollments. Remove period policies (including their category-weight rows),
@@ -67,7 +73,7 @@ security events are intentionally not included in this school-record cleanup.
 session rejection and existing GUI/business behavior.
 `python -m tests.verify_period_grading` creates an isolated disposable schema
 and checks real account bootstrap, login, role changes, lockout, revocation,
-teacher ownership, scoped reads, and audited protected deletion in addition to
+teacher ownership, scoped reads, audited protected deletion, and batch rollback in addition to
 the grading workflow. Test accounts are removed with that isolated schema.
 GUI smoke tests use explicit fake authentication to test layout without creating
 production accounts; that helper exists only under `tests/`.
