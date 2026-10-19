@@ -43,7 +43,7 @@ class TeacherRepository:
                     email = EXCLUDED.email,
                     department = EXCLUDED.department,
                     status = EXCLUDED.status
-            """, (teacher_id, first_name, last_name, email, department, status))
+            """, (teacher_id, first_name, last_name, email or None, department, status))
             connection.commit()
         except Exception:
             connection.rollback()

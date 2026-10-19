@@ -9,7 +9,7 @@ class StudentRepository:
 
         try:
             cursor.execute("""
-                SELECT student_id, first_name, last_name, email, program, status
+                SELECT student_id, first_name, last_name, email, program, status, year_level
                 FROM students
                 ORDER BY last_name, first_name
             """)
@@ -24,7 +24,7 @@ class StudentRepository:
 
         try:
             cursor.execute("""
-                SELECT student_id, first_name, last_name, email, program, status
+                SELECT student_id, first_name, last_name, email, program, status, year_level
                 FROM students
                 WHERE student_id = %s
             """, (student_id,))
@@ -33,24 +33,32 @@ class StudentRepository:
             cursor.close()
             connection.close()
 
-    def save(self, student_id, first_name, last_name, email, program, status):
+    def create(self, student_id, first_name, last_name, email, program, status, year_level=1):
+        with get_connection() as connection:
+            connection.execute('''INSERT INTO students
+                (student_id,first_name,last_name,email,program,status,year_level)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)''',
+                (student_id,first_name,last_name,email or None,program,status,year_level))
+
+    def save(self, student_id, first_name, last_name, email, program, status, year_level=1):
         connection = get_connection()
         cursor = connection.cursor()
 
         try:
             cursor.execute("""
                 INSERT INTO students (
-                    student_id, first_name, last_name, email, program, status
+                    student_id, first_name, last_name, email, program, status, year_level
                 )
-                VALUES (%s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (student_id)
                 DO UPDATE SET
                     first_name = EXCLUDED.first_name,
                     last_name = EXCLUDED.last_name,
                     email = EXCLUDED.email,
                     program = EXCLUDED.program,
-                    status = EXCLUDED.status
-            """, (student_id, first_name, last_name, email, program, status))
+                    status = EXCLUDED.status,
+                    year_level = EXCLUDED.year_level
+            """, (student_id, first_name, last_name, email or None, program, status, year_level))
             connection.commit()
         except Exception:
             connection.rollback()

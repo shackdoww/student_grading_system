@@ -60,6 +60,17 @@ def test_revoked_session_cannot_reach_write():
     business.save.assert_not_called()
 
 
+@pytest.mark.parametrize('role', ['teacher','registrar','dean'])
+def test_non_admin_snapshot_does_not_expose_grade_audit(role):
+    from app.gui.data_snapshot import DataSnapshot
+    from app.services.access_control import scope_snapshot
+    snapshot=DataSnapshot()
+    records=snapshot.records()
+    records['grade_audit_log']=[dict(log_id=1,old_value={'score':57},new_value={'score':75})]
+    scoped=scope_snapshot(DataSnapshot(records),dict(role=role,teacher_id='T'))
+    assert scoped.records()['grade_audit_log'] == []
+
+
 def test_unauthenticated_window_is_not_constructed():
     from PySide6.QtWidgets import QApplication
     from app.gui.pyside_app import StudentHub

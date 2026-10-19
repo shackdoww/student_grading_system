@@ -35,6 +35,6 @@ class PeriodGradingService:
                     raise ValueError('Enrollment not found.')
                 policy, weights, components = repository.context(cursor, enrollment['offering_id'])
                 cursor.execute('SELECT * FROM grade_component_scores WHERE enrollment_id=%s', (enrollment_id,))
-                result = self.calculator.calculate(policy, weights, components, cursor.fetchall())
+                result = self.calculator.calculate(policy, weights, components, cursor.fetchall(), include_equivalents=True)
                 repository.save_result(cursor, enrollment_id, result)
-                return result
+                return {key: result[key] for key in ['midterm','final','overall']}

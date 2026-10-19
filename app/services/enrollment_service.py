@@ -33,7 +33,7 @@ class EnrollmentService:
         if not self.offering_repository.find_by_id(offering_id):
             raise ValueError("Class offering not found.")
 
-    def enroll(self, student_id, offering_id, status='Active', enroll_date=None):
+    def enroll(self, student_id, offering_id, status='Enrolled', enroll_date=None):
         """Create-only enrollment; generated keys never overwrite another record."""
         self.validate_membership(student_id, offering_id)
         if self.repository.find_by_student_and_offering(student_id, offering_id):
@@ -46,6 +46,12 @@ class EnrollmentService:
                 raise ValueError('This student is already enrolled in this class offering.') from error
             raise
         return enrollment_id
+
+    def update_status(self, enrollment_id, status):
+        if status not in ('Enrolled', 'Active', 'Dropped', 'Completed'):
+            raise ValueError('Choose a valid enrollment status.')
+        self.get(enrollment_id)
+        self.repository.update_status(enrollment_id, status)
 
     def save(self, enrollment_id, enroll_date, status, student_id, offering_id):
         self.validate_membership(student_id, offering_id)

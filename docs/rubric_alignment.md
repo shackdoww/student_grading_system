@@ -1,5 +1,10 @@
 # Finals rubric alignment
 
+The current case-by-case review is [checklist_audit.md](checklist_audit.md).
+The historical notes below describe earlier releases. Student/enrollment
+maintenance, grade-point reports and grade-change auditing have since been
+added. Apply all migrations, including migration 004, before launching.
+
 The implementation remains Python, PySide6, and PostgreSQL by the project
 owner's explicit decision. The rubric's Java deliverable is therefore an
 intentional exception, not a claim of exact language compliance.

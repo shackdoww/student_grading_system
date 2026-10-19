@@ -22,7 +22,11 @@ def save_policy(cursor, policy, weights):
 
 def save_result(cursor, enrollment_id, result):
     cursor.execute('''INSERT INTO period_grade_results
-        (enrollment_id,midterm_grade,final_grade,overall_grade) VALUES (%s,%s,%s,%s)
+        (enrollment_id,midterm_grade,final_grade,overall_grade,midterm_equiv,finals_equiv,final_equiv,remarks)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
         ON CONFLICT(enrollment_id) DO UPDATE SET midterm_grade=EXCLUDED.midterm_grade,
         final_grade=EXCLUDED.final_grade,overall_grade=EXCLUDED.overall_grade,
-        calculated_at=CURRENT_TIMESTAMP''', (enrollment_id, result['midterm'], result['final'], result['overall']))
+        midterm_equiv=EXCLUDED.midterm_equiv,finals_equiv=EXCLUDED.finals_equiv,
+        final_equiv=EXCLUDED.final_equiv,remarks=EXCLUDED.remarks,
+        calculated_at=CURRENT_TIMESTAMP''', (enrollment_id, result['midterm'], result['final'], result['overall'],
+        result['midterm_equiv'],result['finals_equiv'],result['final_equiv'],result['remarks']))

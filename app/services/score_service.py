@@ -1,4 +1,5 @@
 from datetime import date
+from math import isfinite
 
 from app.repositories.enrollment_repository import EnrollmentRepository
 from app.repositories.grade_component_repository import GradeComponentRepository
@@ -38,6 +39,9 @@ class ScoreService:
 
         maximum = float(component[3])
         score = float(score)
+
+        if not isfinite(score) or not isfinite(maximum):
+            raise ValueError('Score and maximum must be finite numbers.')
 
         if score < 0 or score > maximum:
             raise ValueError(

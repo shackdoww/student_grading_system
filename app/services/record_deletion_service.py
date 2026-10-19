@@ -32,6 +32,7 @@ class RecordDeletionService:
         with self.guard.auth.connect() as connection:
             with connection.cursor(row_factory=dict_row) as cursor:
                 actor = self.guard.auth.require_admin(self.guard.token, cursor)
+                cursor.execute("SELECT set_config('app.actor', %s, true)", (str(actor['user_id']),))
                 # Consistent lock order avoids deadlocks between overlapping batches.
                 for identifier in sorted(identifiers):
                     self._delete_record(cursor, actor, table, key, dependents, identifier)

@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 RECORDS = {
     'Teachers': ('teachers', 'teacher', 'teacher_id first_name last_name email department status'),
     'Subjects': ('subjects', 'subject', 'subject_id subject_code subject_name description units'),
-    'Grading Periods': ('grading_periods', 'period', 'period_id name start_date end_date school_year semester'),
+    'Grading Periods': ('grading_periods', 'period', 'period_id name start_date end_date school_year semester period_order'),
     'Class Offerings': ('class_offerings', 'offering', 'offering_id class_code schedule section school_year semester room teacher_id subject_id'),
     'Weights': ('grade_percentages', 'percentage', 'percentage_id percentage offering_id'),
     'Components': ('grade_components', 'component', 'component_id name type max_score description period_id percentage_id'),
@@ -47,6 +47,10 @@ class RecordDialog(QDialog):
                     widget.setCurrentIndex(widget.findData(value))
             else:
                 widget = QLineEdit(value)
+                if not record and field == 'period_order':
+                    widget.setText(str(len(records['grading_periods'])+1))
+                if field == 'email':
+                    widget.setPlaceholderText('Optional')
                 if field.endswith('_date'):
                     widget.setPlaceholderText('YYYY-MM-DD')
                 if record and index == 0:

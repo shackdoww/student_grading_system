@@ -1,165 +1,91 @@
 # Student Information and Grading System
 
-A Python and PostgreSQL student information and grading system based on the project's UML design.
+## Checklist and GUI update
 
-`main.py` is the only application launch entry point. The desktop interface
-uses PySide6; unused compatibility launchers and Tkinter windows have been removed.
-Academic records and grading
-configuration can be maintained from the Academic page; referenced records
-are protected from deletion. Tables support CSV export and print preview.
-See [rubric alignment](docs/rubric_alignment.md) for verified coverage and
-outstanding finals-project requirements.
+The current desktop interface uses neutral surfaces, rounded cards and controls,
+and a restrained green accent. Student creation rejects an existing student
+number; student editing keeps that number fixed. Year level is stored, student
+and teacher email addresses are optional, and enrollment status can be updated
+without changing scores. Admins can remove unused records; dependent records
+remain protected. Score entry reloads saved scores for corrections and supports
+confirmed score deletion for Admins.
 
-The app now requires a school account. See [accounts and roles](docs/accounts_and_roles.md)
-for first-Admin setup, permissions and manual deletion controls.
+Use the Class / Section page for the Class List and the Class Grades page's
+Grade Sheet output for MG and FG grade points. The Student Report includes a
+term selector, units, teachers, final grade points and the units-weighted GWA.
+Reports display saved results only when they match current scores and weights.
+Missing scores display **Incomplete**; changed grades display **Recompute
+required** until saved again. The grade-point conversion uses the unrounded
+percentage. Grade changes record their before/after values, signed-in actor
+and time in `grade_audit_log`; Admins can open Audit history in Class Grades.
 
-## Technologies
+**Existing databases:** after updating dependencies and configuring `.env`, run
+`python -m app.database.apply_migration --all` before launching. Migration 004
+adds fields and audit tables without deleting academic records. Existing student
+years are left unset for a person to enter accurately. Previously saved period
+results need to be recomputed once to populate their grade-point equivalents.
 
-- Python 3
-- PostgreSQL
-- psycopg
-- python-dotenv
-- IntelliJ IDEA
-- Git and GitHub
+**New databases:** create the database, execute `app/database/schema.sql` once,
+then run `python -m app.database.apply_migration --all`. Copy `.env.example` to
+`.env` and enter the actual connection settings. Do not rerun `schema.sql` on an
+existing database. Launch with `python main.py` and create the first Admin
+account when prompted; no default password is shipped.
 
-## Project Structure
+Use a virtual environment and `python -m pip install -r requirements.txt`.
+PySide6 was updated to 6.10.3, which supports Python 3.14 as well as Python 3.12
+([official package metadata](https://pypi.org/project/PySide6/6.10.3/)). The old
+6.10.0 pin could not install on Python 3.14.
+
+See [the checklist audit](docs/checklist_audit.md) for case-by-case evidence
+and the remaining database-model differences. This is not a claim of an awarded
+100/100: the existing schema keeps components per class and period results in
+`period_grade_results`, whereas the checklist appendix reuses six global
+components and stores the consolidated results in `GRADE`.
+
+Verification in an isolated test environment:
+
+```powershell
+python -m pytest -q
+# Optional database acceptance test; creates and removes only a generated schema:
+$env:CHECKLIST_TEST_DSN='host=localhost port=5432 dbname=your_test_database user=your_test_user'
+python -m pytest tests/test_checklist_database.py -q
+# Requires CREATE SCHEMA privileges. Use a test database, not a production account.
+```
+
+The acceptance test uses real PostgreSQL writes, loads the real PySide6 pages,
+checks the supplied results and protected deletions, and launches a second GUI
+process to verify persistence. It does not replace the instructor's live
+mouse-and-keyboard demonstration.
+
+## Architecture
+
+`main.py` is the only application launcher. The GUI uses PySide6, services
+validate and authorize workflows, repositories use parameter-bound PostgreSQL
+queries, and the database enforces relationships and range checks.
 
 ```
 app/
-├── calculator/
-│   ├── grade_calculator.py
-│   └── period_calculator.py
-├── database/
-│   ├── connection.py
-│   ├── schema.sql
-│   └── migration_*.sql
-├── gui/
-│   ├── pyside_app.py
-│   ├── academic_editor.py
-│   ├── period_grading_dialog.py
-│   ├── program_distribution.py
-│   └── assets/icons/
-├── repositories/
-│   └── PostgreSQL repositories
-└── services/
-    └── validated application workflows
-
+  calculator/       Grade normalization and grade-point scale
+  database/         Connection, base schema and additive migrations
+  gui/              Desktop pages, dialogs, report layouts and print/export
+  repositories/     PostgreSQL persistence
+  services/         Validated and role-scoped operations
 main.py
 requirements.txt
 tests/
 ```
 
-## Backend Architecture
+Period grading uses configurable policies and category weights. Enter explicit
+zero scores when appropriate: missing scores block calculation. A class's
+components belong to its category records; create separate components for
+another class. Legacy consolidated grades are retained for compatibility,
+while current reports use `period_grade_results` and its saved grade points.
 
-The system uses Python as the application backend and PostgreSQL as the database backend.
+The dashboard's student counts and program distribution use loaded records.
+Set `STUDENT_HUB_REDUCED_MOTION=1` to reduce animations. Tables support CSV
+export and print preview. CSV formula-like text is escaped and printed text is
+HTML-escaped.
 
-```
-GUI
- ↓
-Python Services
- ↓
-Repositories
- ↓
-PostgreSQL
-```
-
-Python services handle application rules and validation. Repositories handle SQL access. PostgreSQL stores the data and enforces database constraints.
-The dashboard program-distribution chart uses the loaded student records,
-not sample statistics. Its animation respects `STUDENT_HUB_REDUCED_MOTION=1`.
-
-## Applying the Existing-Database Migration
-
-If the database already exists, do not rerun `schema.sql` because it recreates the tables. Instead, run `app/database/migration_001_backend_validation.sql` once in PostgreSQL. It adds the grading validation triggers without dropping existing data.
-
-## Setup
-
-1. Create the PostgreSQL database named `student_grading_system`.
-2. Run `app/database/schema.sql`.
-   Then apply `app/database/migration_002_period_grading.sql` to add period
-   grading tables. On an existing database, apply only the migration; do not
-   recreate the schema. The migration can safely be run more than once.
-   Also apply `app/database/migration_003_accounts.sql` (or run
-   `python -m app.database.apply_migration --accounts`) before launching.
-3. Create a local `.env` file:
-
-```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=student_grading_system
-DB_USER=postgres
-DB_PASSWORD=your_actual_password
-```
-
-4. Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-5. Run:
-
-```bash
-python main.py
-```
-
-## Grading Flow
-
-```
-Student
-   ↓
-Enrollment
-   ↓
-Grade Component Scores
-   ↓
-GradeCalculator
-   ↓
-GradingService
-   ↓
-GradeRepository
-   ↓
-grades table
-```
-
-The calculator converts each component score to a percentage, averages components that belong to the same grading percentage, applies the category weight, and adds the weighted results to produce the final grade.
-
-## Midterm Final and Overall grades
-
-Enrollment IDs are internal: the Enrollments page generates a unique ID when
-creating each student/class link. Select a student, class offering and status;
-there is no ID to type. Existing enrollment IDs are preserved. Ordinary rosters,
-reports and exports show student numbers instead. Grade actions use a hidden
-enrollment key, and score IDs are also generated automatically. CSV import
-retains explicit identifiers for linking imported datasets.
-
-The legacy calculation and saved grades remain unchanged. For the separate
-period workflow, create components for two grading periods matching the class
-school year and semester. In Class Grades, choose **Period Setup**, select the
-Midterm and Final periods, and enter the overall weights and each period's
-category weights. Each set must total 100%; the percentages are configurable,
-not hard-coded. Category IDs refer to the existing Academic weights records.
-
-Enter all required component scores, including explicit zero scores. Missing
-scores block period calculation. **Save Period Grades** persists separate
-Midterm, Final, and Overall values for the selected roster student. The grade
-sheet includes raw scores and current calculations; the Readiness column shows
-whether persisted results match. Configuration or score changes require saving
-again to update stored results. Student reports include all three period values.
-Select the period grade sheet in the output selector to export CSV or print.
-
-Apply the additive migration from Python with:
-
-```powershell
-python -m app.database.apply_migration --period-grading
-```
-
-Verification:
-
-```powershell
-python -m pytest -q
-python -m tests.verify_period_grading
-python -m tests.gui_smoke
-```
-
-The period integration test creates a uniquely named isolated PostgreSQL schema,
-checks durable results and recalculation, exercises the PySide6 reports, and
-removes only that test schema afterward. It needs CREATE SCHEMA privileges.
+See [accounts and roles](docs/accounts_and_roles.md) for first-Admin setup,
+permissions and deletion controls. Refer to [the checklist audit](docs/checklist_audit.md)
+for the supplied cases, validation evidence and demonstration steps.

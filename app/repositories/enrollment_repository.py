@@ -2,6 +2,11 @@ from app.database.connection import get_connection
 
 
 class EnrollmentRepository:
+    def update_status(self, enrollment_id, status):
+        with get_connection() as connection:
+            result = connection.execute('UPDATE enrollments SET status=%s WHERE enrollment_id=%s', (status,enrollment_id))
+            if not result.rowcount:
+                raise ValueError('Enrollment not found.')
 
     def find_by_id(self, enrollment_id):
         connection = get_connection()

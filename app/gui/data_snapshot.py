@@ -10,7 +10,7 @@ from app.database.connection import get_connection
 
 TABLES = ('students', 'teachers', 'subjects', 'grading_periods', 'class_offerings',
           'enrollments', 'grade_percentages', 'grade_components', 'grade_component_scores', 'grades',
-          'grading_policies', 'period_category_weights', 'period_grade_results')
+          'grading_policies', 'period_category_weights', 'period_grade_results', 'grade_audit_log')
 
 
 def load_snapshot():
@@ -39,7 +39,7 @@ class DataSnapshot:
             return 'Saved results match current calculation'
         return 'Saved results outdated · save period grades again'
 
-    def period_result(self, enrollment_id):
+    def period_result(self, enrollment_id, include_equivalents=False):
         from app.calculator.period_calculator import PeriodCalculator
         records = self._records
         enrollment = next(r for r in records['enrollments'] if r['enrollment_id'] == enrollment_id)
@@ -49,7 +49,7 @@ class DataSnapshot:
         ids = {r['percentage_id'] for r in records['grade_percentages'] if r['offering_id'] == oid}
         components = [r for r in records['grade_components'] if r['percentage_id'] in ids]
         scores = [r for r in records['grade_component_scores'] if r['enrollment_id'] == enrollment_id]
-        return PeriodCalculator().calculate(policy, weights, components, scores)
+        return PeriodCalculator().calculate(policy, weights, components, scores, include_equivalents=include_equivalents)
 
     def records(self):
         """Detached values for editors; callers cannot mutate the cached snapshot."""
@@ -58,7 +58,7 @@ class DataSnapshot:
     def __init__(self, records=None):
         records = records or {name: [] for name in TABLES}
         self._records = records
-        self._students = sorted([values(r, 'student_id first_name last_name email program status')
+        self._students = sorted([values(r, 'student_id first_name last_name email program status') + (r.get('year_level'),)
                                  for r in records['students']], key=lambda r: (r[2], r[1]))
         self._student = {r[0]: r for r in self._students}
         self._teachers = sorted([values(r, 'teacher_id first_name last_name email department status')
@@ -68,8 +68,8 @@ class DataSnapshot:
         periods = {r['period_id']: r for r in records['grading_periods']}
         self._subjects = sorted([values(r, 'subject_id subject_code subject_name description units')
                                  for r in subjects.values()], key=lambda r: r[1])
-        self._periods = sorted([values(r, 'period_id name start_date end_date school_year semester')
-                                for r in periods.values()], key=lambda r: r[2])
+        self._periods = sorted([values(r, 'period_id name start_date end_date school_year semester') + (r.get('period_order',1),)
+                                for r in periods.values()], key=lambda r: (r[6],r[2]))
         self._offerings = []
         offerings = {r['offering_id']: r for r in records['class_offerings']}
         for r in offerings.values():

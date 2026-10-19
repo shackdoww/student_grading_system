@@ -63,7 +63,7 @@ def verify_accounts(connect):
     # Both deleted rows and their audit entries roll back if a later row fails.
     with connect() as connection:
         for key in ['B1', 'B2']:
-            connection.execute('INSERT INTO students VALUES (%s,%s,%s,%s,%s,%s)',
+            connection.execute('INSERT INTO students (student_id,first_name,last_name,email,program,status) VALUES (%s,%s,%s,%s,%s,%s)',
                                (key, 'Batch', 'Test', key + '@example.test', 'CS', 'Active'))
     rejected(lambda: deletion.delete_many('students', ['B1', 'S']), ValueError)
     rejected(lambda: deletion.delete_many('students', ['B1', 'MISSING']), ValueError)

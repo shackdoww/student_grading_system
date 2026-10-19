@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.gui.table_output import export_table, print_table
+from app.gui.checklist_reports import class_report, student_report, saved_result
 from app.gui.motion import InteractionFeedback, PageReveal
 from app.gui.background import BackgroundJobs
 from app.gui.data_snapshot import DataSnapshot, load_snapshot
@@ -36,15 +37,15 @@ from app.services.record_deletion_service import RecordDeletionService
 from app.services.period_grading_service import PeriodGradingService
 
 
-BG = "#F5F7FA"
+BG = "#F6F7F5"
 SURFACE = "#FFFFFF"
-SURFACE_2 = "#F8FAFC"
-SURFACE_3 = "#EEF2F7"
-TEXT = "#172033"
-MUTED = "#64748B"
-PURPLE = "#3158D4"
-PURPLE_HOVER = "#2448BB"
-PURPLE_SOFT = "#E9EEFF"
+SURFACE_2 = "#F1F3EF"
+SURFACE_3 = "#EDEFEA"
+TEXT = "#202824"
+MUTED = "#68756C"
+PURPLE = "#17775D"
+PURPLE_HOVER = "#105D48"
+PURPLE_SOFT = "#E5F2E9"
 MINT = "#DCF4EA"
 MINT_TEXT = "#16785A"
 BLUE = "#E5EFFF"
@@ -53,12 +54,13 @@ PEACH = "#FFF0E8"
 PEACH_TEXT = "#B45309"
 YELLOW = "#FFF7D6"
 YELLOW_TEXT = "#9A6700"
-BORDER = "#E2E8F0"
+BORDER = "#E0E6DF"
 ENROLLMENT_ROLE = Qt.UserRole + 1
 DANGER = "#C2414B"
 
 
 ICON_DIR = os.path.join(os.path.dirname(__file__), "assets", "icons")
+CHEVRON_PATH = os.path.join(ICON_DIR, 'chevron-down.svg').replace('\\', '/')
 
 def sidebar_icon(name, color, size=22):
     path = os.path.join(ICON_DIR, name)
@@ -109,18 +111,15 @@ class StatCard(Card):
         top = QHBoxLayout()
         title = QLabel(label)
         self.setObjectName("statCard")
-        lighter = QColor(accent).lighter(118).name()
-        self.setStyleSheet(f"QFrame#statCard {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {accent},stop:1 {lighter}); border: 0; }} "
-                           "QFrame#statCard QLabel { color: white; background: transparent; }")
         title.setObjectName("eyebrow")
         dot = QLabel()
         dot.setObjectName('statIcon')
         dot.setFixedSize(42, 42)
         dot.setAlignment(Qt.AlignCenter)
-        dot.setStyleSheet('QLabel#statIcon {background:rgba(255,255,255,24);border-radius:12px;}')
+        dot.setStyleSheet(f'QLabel#statIcon {{background:{PURPLE_SOFT};border-radius:14px;}}')
         icon_name = {"Students": "users-round.svg", "Enrollments": "file-text.svg",
                      "Teachers": "graduation-cap.svg", "Class Offerings": "book-open.svg"}.get(label, "chart.svg")
-        dot.setPixmap(sidebar_icon(icon_name, "#FFFFFF", 28).pixmap(28, 28))
+        dot.setPixmap(sidebar_icon(icon_name, PURPLE, 24).pixmap(24, 24))
         top.addWidget(title)
         top.addStretch()
         top.addWidget(dot)
@@ -191,6 +190,21 @@ def fill_table(t, rows):
     t.blockSignals(blocked)
 
 
+def apply_report(widget, report):
+    widget.setColumnCount(len(report['headers']))
+    widget.setHorizontalHeaderLabels(report['headers'])
+    widget.setProperty('outputTitle',report['title'])
+    widget.setProperty('reportMetadata',report['metadata'])
+    widget.setProperty('reportSummary',report['summary'])
+    fill_table(widget,report['rows'])
+    widget.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+    for column,label in enumerate(report['headers']):
+        widget.setColumnWidth(column,{'No.':58,'Student':220,'Student Name':240,'Course':100,'MG':100,'FG':100,
+                                     'Subject Code':120,'Description':300,'Teacher':170,'Units':80,'F Grade':140}.get(label,140))
+    widget.horizontalHeader().setSectionResizeMode(1 if len(report['headers'])<6 else 2,QHeaderView.Stretch)
+    widget.resizeRowsToContents()
+
+
 class StudentDialog(QDialog):
     def __init__(self, parent=None, student=None):
         super().__init__(parent)
@@ -203,7 +217,7 @@ class StudentDialog(QDialog):
         labels = [
             ("Student ID", "student_id"), ("First Name", "first_name"),
             ("Last Name", "last_name"), ("Email", "email"),
-            ("Program", "program"), ("Status", "status")
+            ("Program", "program"), ("Status", "status"), ("Year Level (1–6)", "year_level")
         ]
         for label, key in labels:
             w = QLineEdit()
@@ -211,9 +225,12 @@ class StudentDialog(QDialog):
             form.addRow(label, w)
         if student:
             for i, key in enumerate(self.fields):
-                self.fields[key].setText(str(student[i]))
+                self.fields[key].setText(str(student[i]) if i < len(student) and student[i] is not None else '')
+            self.fields['student_id'].setReadOnly(True)
         else:
             self.fields["status"].setText("Active")
+            self.fields['year_level'].setText('1')
+        self.fields['email'].setPlaceholderText('Optional')
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         for control in buttons.buttons():
             control.motion_feedback = InteractionFeedback(control)
@@ -226,7 +243,7 @@ class StudentDialog(QDialog):
 
 
 class ScoreDialog(QDialog):
-    def __init__(self, parent, enrollment_id, components):
+    def __init__(self, parent, enrollment_id, components, scores=None):
         super().__init__(parent)
         self.setWindowTitle("Record Score")
         self.setMinimumWidth(460)
@@ -241,12 +258,32 @@ class ScoreDialog(QDialog):
         form.addRow("Component", self.component)
         form.addRow("Score", self.score)
         form.addRow("Remarks", self.remarks)
+        self.saved_scores = {s['component_id']:s for s in (scores or [])}
+        self.delete_requested = False
+        self.delete_control = QPushButton('Delete saved score')
+        self.delete_control.clicked.connect(self.request_delete)
+        self.delete_control.setVisible(bool(parent and getattr(parent, 'app', None) and parent.app.can('delete')))
+        form.addRow(self.delete_control)
+        self.component.currentIndexChanged.connect(self.load_saved)
+        self.load_saved()
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         for control in buttons.buttons():
             control.motion_feedback = InteractionFeedback(control)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
+
+    def load_saved(self):
+        saved = self.saved_scores.get(self.component.currentData())
+        self.score_id = saved['score_id'] if saved else 'SC-' + uuid4().hex
+        self.score.setText(str(saved['score']) if saved else '')
+        self.remarks.setText(saved.get('remarks') or '' if saved else '')
+        self.delete_control.setEnabled(saved is not None)
+
+    def request_delete(self):
+        if QMessageBox.question(self, 'Delete score', 'Delete this saved score? Its grade will be incomplete until you re-enter the score and recompute.') == QMessageBox.Yes:
+            self.delete_requested = True
+            self.accept()
 
     def values(self):
         return self.score_id, self.component.currentData(), self.score.text().strip(), self.remarks.text().strip()
@@ -298,6 +335,7 @@ class DashboardPage(QWidget):
         sl.addWidget(self.search)
         self.student_table = table(["ID", "Name", "Program", "Status"])
         self.student_table.itemSelectionChanged.connect(self.student_selected)
+        self.student_table.doubleClicked.connect(self.edit_student)
         sl.addWidget(self.student_table, 1)
         workspace.addWidget(students_card, 2)
 
@@ -321,7 +359,7 @@ class DashboardPage(QWidget):
         il.addWidget(self.selected_info)
         self.grade_label = QLabel("—")
         self.grade_label.setObjectName("heroGrade")
-        il.addWidget(styled_label('Legacy grade average', 'subtitle'))
+        il.addWidget(styled_label('Latest term grade weighted average', 'subtitle'))
         il.addWidget(self.grade_label)
         self.enrollment_label = QLabel("No enrollment selected")
         self.enrollment_label.setObjectName("subtitle")
@@ -337,6 +375,8 @@ class DashboardPage(QWidget):
         quick_grid.addWidget(button("Academic", lambda: self.app.show_page("academic"), compact=True), 0, 1)
         quick_grid.addWidget(button("Enrollments", lambda: self.app.show_page("enrollments"), compact=True), 0, 2)
         quick_grid.addWidget(button("Report", self.open_report, compact=True), 0, 3)
+        quick_grid.addWidget(button('Edit student', self.edit_student, compact=True), 1, 0, 1, 2)
+        quick_grid.addWidget(button('Delete student', self.delete_student, compact=True), 1, 2, 1, 2)
         ql.addLayout(quick_grid)
         sl.insertWidget(sl.indexOf(self.student_table), quick)
         programs = Card()
@@ -391,17 +431,12 @@ class DashboardPage(QWidget):
             self.selected_student = sid
             self.selected_name.setText(f"{student[1]} {student[2]}")
             self.student_badge.setText((student[1][:1] + student[2][:1]).upper())
-            self.selected_info.setText(f"{student[0]}  ·  {student[4]}  ·  {student[3]}  ·  {student[5]}")
+            self.selected_info.setText(f"{student[0]}  ·  {student[4]}  ·  Year {student[6] or 'not entered'}  ·  {student[5]}")
             enrollments = self.app.data.enrollments_for_student(sid)
             self.enrollment_label.setText(f"{len(enrollments)} enrollment(s)")
-            grades = []
-            for e in enrollments:
-                try:
-                    g = self.app.data.saved_grade(e[0])
-                    grades.append(float(g[1]) if g else float(self.app.data.calculate_grade(e[0])))
-                except Exception:
-                    pass
-            self.grade_label.setText(f"{sum(grades)/len(grades):.1f}%" if grades else "—")
+            terms = sorted({(e[7], e[8]) for e in enrollments}, reverse=True)
+            summary = student_report(self.app.data, sid, *terms[0])['summary'][-1].split(': ',1)[1] if terms else '—'
+            self.grade_label.setText(summary)
         except Exception as e:
             self.app.error(str(e))
 
@@ -411,9 +446,24 @@ class DashboardPage(QWidget):
             return
         try:
             v = d.values()
-            self.app.run_write(lambda: self.app.student_service.save(**v), "Student saved.")
+            self.app.run_write(lambda: self.app.student_service.create(**v), "Student saved.")
         except Exception as e:
             self.app.error(str(e))
+
+    def edit_student(self, *_):
+        if not self.app.can('students') or not self.selected_student:
+            return
+        dialog = StudentDialog(self, self.app.data.student(self.selected_student))
+        if dialog.exec() == QDialog.Accepted:
+            values = dialog.values()
+            self.app.run_write(lambda: self.app.student_service.save(**values), 'Student updated.')
+
+    def delete_student(self):
+        if not self.app.can('delete') or not self.selected_student:
+            return
+        sid = self.selected_student
+        if QMessageBox.question(self, 'Delete student', f'Delete {sid}? Students with enrollments are protected.') == QMessageBox.Yes:
+            self.app.run_write(lambda: self.app.deletion_service.delete('students',sid),'Student deleted.')
 
     def open_report(self):
         if not self.selected_student:
@@ -441,7 +491,7 @@ class AcademicPage(QWidget):
 
         self.teacher_table = table(["ID", "Name", "Email", "Department", "Status"])
         self.subject_table = table(["ID", "Code", "Subject", "Units", "Description"])
-        self.period_table = table(["ID", "Name", "Start", "End", "School Year", "Semester"])
+        self.period_table = table(["ID", "Name", "Start", "End", "School Year", "Semester", "Order"])
         self.offering_table = table(["ID", "Class", "Subject", "Section", "Schedule", "Teacher", "Room"])
         self.weight_table = table(["ID", "Percentage", "Class ID"])
         self.component_table = table(["ID", "Name", "Type", "Maximum", "Description", "Period ID", "Weight ID"])
@@ -463,7 +513,7 @@ class AcademicPage(QWidget):
             subjects = self.app.data.subjects()
             fill_table(self.subject_table, [(r[0], r[1], r[2], r[4], r[3] or "—") for r in subjects])
             periods = self.app.data.periods()
-            fill_table(self.period_table, [(r[0], r[1], r[2], r[3], r[4], r[5]) for r in periods])
+            fill_table(self.period_table, [list(r) for r in periods])
             offerings = self.app.data.offerings()
             records = self.app.data.records()
             fill_table(self.weight_table, [(r['percentage_id'], r['percentage'], r['offering_id']) for r in records['grade_percentages']])
@@ -495,7 +545,7 @@ class EnrollmentsPage(QWidget):
         form.addWidget(self.offering, 1, 1)
         form.addWidget(styled_label("STATUS", "eyebrow"), 2, 0)
         self.status = QComboBox()
-        self.status.addItems(["Active", "Dropped", "Completed"])
+        self.status.addItems(["Enrolled", "Dropped", "Completed"])
         form.addWidget(self.status, 3, 0)
         save = button("Enroll Student", self.save, True)
         form.addWidget(save, 4, 1, Qt.AlignRight)
@@ -507,6 +557,10 @@ class EnrollmentsPage(QWidget):
         l = QVBoxLayout(card)
         l.setContentsMargins(14, 14, 14, 14)
         l.addWidget(styled_label("Current enrollment roster", "cardTitle"))
+        actions = QHBoxLayout()
+        actions.addWidget(button('Update selected status', self.update_status))
+        actions.addWidget(button('Remove selected enrollment', self.remove_enrollment))
+        l.addLayout(actions)
         self.list = table(["Student Number", "Student", "Class", "Section", "Program", "Status"])
         l.addWidget(self.list)
         root.addWidget(card, 1)
@@ -529,12 +583,31 @@ class EnrollmentsPage(QWidget):
                 if index >= 0:
                     combo.setCurrentIndex(index)
             rows = []
+            self.enrollment_keys = []
             for o in offerings:
                 for e in self.app.data.enrollments_for_offering(o[0]):
                     rows.append((e[1], f"{e[2]} {e[3]}", o[1], o[3], e[4], e[5]))
+                    self.enrollment_keys.append(e[0])
             fill_table(self.list, rows)
         except Exception as e:
             self.app.error(str(e))
+
+    def update_status(self):
+        row = self.list.currentRow()
+        if row < 0:
+            self.app.warning('Select an enrollment first.')
+            return
+        eid, status = self.enrollment_keys[row], self.status.currentText()
+        self.app.run_write(lambda: self.app.enrollment_service.update_status(eid,status),'Enrollment status updated.')
+
+    def remove_enrollment(self):
+        row = self.list.currentRow()
+        if row < 0:
+            self.app.warning('Select an enrollment first.')
+            return
+        eid = self.enrollment_keys[row]
+        if QMessageBox.question(self,'Remove enrollment','Remove this enrollment? Enrollments with scores or saved grades are protected.') == QMessageBox.Yes:
+            self.app.run_write(lambda: self.app.deletion_service.delete('enrollments',eid),'Enrollment removed.')
 
     def save(self):
         if not self.student.currentData() or not self.offering.currentData():
@@ -577,13 +650,15 @@ class GradesPage(QWidget):
         actions.addWidget(styled_label("Roster & grades", "cardTitle"))
         actions.addStretch()
         actions.addWidget(button("Record Score", self.record_score, True))
-        actions.addWidget(button("Save Legacy Grade", self.save_grade))
         actions.addWidget(button("Period Setup", self.configure_periods))
         actions.addWidget(button("Save Period Grades", self.save_period_grades))
+        audit = button('Audit history', self.show_audit)
+        audit.setVisible(self.app.can('delete'))
+        actions.addWidget(audit)
         l.addLayout(actions)
         self.roster = table(["Enrollment", "Student", "Program", "Status", "Final Grade"])
-        self.roster.setHorizontalHeaderLabels(['Student Number', 'Student', 'Program', 'Status', 'Legacy Grade'])
-        self.roster.setProperty('outputTitle', 'Legacy roster')
+        self.roster.setHorizontalHeaderLabels(['Student Number', 'Student', 'Program', 'Status', 'Overall (%)'])
+        self.roster.setProperty('outputTitle', 'Class scores')
         l.addWidget(self.roster)
         root.addWidget(card, 1)
         self.grade_sheet = table(['Student Number', 'Student', 'Midterm', 'Final', 'Overall', 'Readiness'])
@@ -591,7 +666,7 @@ class GradesPage(QWidget):
         sheet_card = Card()
         sheet_layout = QVBoxLayout(sheet_card)
         sheet_layout.setContentsMargins(14, 14, 14, 14)
-        sheet_layout.addWidget(styled_label('Period grade sheet · current calculations', 'cardTitle'))
+        sheet_layout.addWidget(styled_label('Grade sheet · saved grade points', 'cardTitle'))
         sheet_layout.addWidget(self.grade_sheet)
         root.addWidget(sheet_card, 1)
         self.refresh_offerings()
@@ -633,12 +708,14 @@ class GradesPage(QWidget):
             enrollments = self.app.data.enrollments_for_offering(oid)
             for e in enrollments:
                 try:
-                    g = self.app.data.saved_grade(e[0])
-                    value = float(g[1]) if g else float(self.app.data.calculate_grade(e[0]))
+                    g, status = saved_result(self.app.data,e[0])
+                    if not g:
+                        raise ValueError(status)
+                    value = float(g['overall_grade'])
                     text = f"{value:.2f}%"
                     grades.append(value)
-                except Exception:
-                    text = "No grade yet"
+                except ValueError as error:
+                    text = str(error)
                 rows.append((e[1], f"{e[2]} {e[3]}", e[4], e[5], text))
             fill_table(self.roster, rows)
             for row, enrollment in enumerate(enrollments):
@@ -650,24 +727,20 @@ class GradesPage(QWidget):
             self.app.error(str(e))
 
     def load_grade_sheet(self, oid, enrollments):
-        records = self.app.data.records()
-        component_ids = {r['percentage_id'] for r in records['grade_percentages'] if r['offering_id'] == oid}
-        components = [r for r in records['grade_components'] if r['percentage_id'] in component_ids]
-        headers = ['Student Number', 'Student', 'Midterm', 'Final', 'Overall'] + [f"{c['name']} / {c['max_score']}" for c in components] + ['Readiness']
-        self.grade_sheet.setColumnCount(len(headers))
-        self.grade_sheet.setHorizontalHeaderLabels(headers)
-        rows = []
-        for e in enrollments:
-            scores = {s['component_id']: s['score'] for s in records['grade_component_scores'] if s['enrollment_id'] == e[0]}
-            try:
-                result = self.app.data.period_result(e[0])
-                grades = [f"{result[k]:.2f}%" for k in ['midterm', 'final', 'overall']]
-                status = self.app.data.period_result_status(e[0], result)
-            except ValueError as error:
-                grades = ['—'] * 3
-                status = str(error)
-            rows.append([e[1], f'{e[2]} {e[3]}'] + grades + [scores.get(c['component_id'], '—') for c in components] + [status])
-        fill_table(self.grade_sheet, rows)
+        apply_report(self.grade_sheet, class_report(self.app.data,oid,grade_sheet=True))
+
+    def show_audit(self):
+        if not self.app.can('delete'):
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Grade audit history')
+        dialog.resize(1000,540)
+        layout = QVBoxLayout(dialog)
+        audit_table = table(['When','Who','Table','Record','Action','Before','After'])
+        rows = sorted(self.app.data.records()['grade_audit_log'], key=lambda r:r['log_id'],reverse=True)
+        fill_table(audit_table,[[str(r.get(k) or '') for k in ['changed_at','changed_by','table_name','record_id','action','old_value','new_value']] for r in rows])
+        layout.addWidget(audit_table)
+        dialog.exec()
 
     def configure_periods(self):
         if not self.current_offering:
@@ -693,11 +766,15 @@ class GradesPage(QWidget):
             return
         eid = self.roster.item(row, 0).data(ENROLLMENT_ROLE)
         components = self.app.data.components_for_offering(self.current_offering)
-        d = ScoreDialog(self, eid, components)
+        scores = [s for s in self.app.data.records()['grade_component_scores'] if s['enrollment_id']==eid]
+        d = ScoreDialog(self, eid, components, scores=scores)
         if d.exec() != QDialog.Accepted:
             return
         try:
             score_id, cid, score, remarks = d.values()
+            if d.delete_requested:
+                self.app.run_write(lambda: self.app.deletion_service.delete('grade_component_scores',score_id),'Score deleted. Re-enter it and recompute to complete the grade.')
+                return
             self.app.run_write(lambda: self.app.score_service.record_score(score_id, eid, cid, score, remarks),
                                "Score recorded.")
         except Exception as e:
@@ -726,6 +803,9 @@ class RosterPage(QWidget):
         actions = QWidget()
         header = QHBoxLayout(actions)
         header.setContentsMargins(0, 0, 0, 0)
+        self.teacher = QComboBox()
+        self.teacher.currentIndexChanged.connect(self.refresh_offerings)
+        header.addWidget(self.teacher)
         self.offering = QComboBox()
         self.offering.currentIndexChanged.connect(self.refresh)
         header.addWidget(self.offering)
@@ -738,23 +818,35 @@ class RosterPage(QWidget):
         hl.addWidget(self.class_name)
         self.class_meta = QLabel("")
         self.class_meta.setObjectName("subtitle")
+        self.class_meta.setWordWrap(True)
         hl.addWidget(self.class_meta)
         root.addWidget(hero)
         body = Card()
         bl = QVBoxLayout(body)
         bl.setContentsMargins(14, 14, 14, 14)
-        self.roster = table(["Student Number", "Name", "Program", "Status"])
+        self.roster = table(['No.','Student Name','Course'])
         bl.addWidget(self.roster)
         root.addWidget(body, 1)
         self.refresh_offerings()
 
     def refresh_offerings(self):
         selected = self.offering.currentData()
+        selected_teacher = self.teacher.currentData()
+        self.teacher.blockSignals(True)
+        self.teacher.clear()
+        self.teacher.addItem('All teachers',None)
+        for teacher in self.app.data.teachers():
+            self.teacher.addItem(f'{teacher[1]} {teacher[2]}',teacher[0])
+        index=self.teacher.findData(selected_teacher)
+        if index>=0:
+            self.teacher.setCurrentIndex(index)
+        self.teacher.blockSignals(False)
         self.offering.blockSignals(True)
         self.offering.clear()
         try:
             for o in self.app.data.offerings():
-                self.offering.addItem(f"{o[11]} · {o[12]} · {o[3]}", o[0])
+                if self.teacher.currentData() is None or o[7] == self.teacher.currentData():
+                    self.offering.addItem(f"{o[11]} · {o[12]} · {o[3]}", o[0])
         except Exception as e:
             self.app.error(str(e))
         selected_index = self.offering.findData(selected)
@@ -773,12 +865,10 @@ class RosterPage(QWidget):
         if not oid:
             return
         try:
-            offering = next((o for o in self.app.data.offerings() if o[0] == oid), None)
-            if offering:
-                self.class_name.setText(f"{offering[11]} · {offering[12]}")
-                self.class_meta.setText(f"{offering[1]}  ·  Section {offering[3]}  ·  {offering[2]}  ·  {offering[6] or 'Room TBA'}")
-            rows = self.app.data.enrollments_for_offering(oid)
-            fill_table(self.roster, [(r[1], f"{r[2]} {r[3]}", r[4], r[5]) for r in rows])
+            report=class_report(self.app.data,oid)
+            self.class_name.setText(report['metadata'][0])
+            self.class_meta.setText('\n'.join(report['metadata'][1:]))
+            apply_report(self.roster,report)
         except Exception as e:
             self.app.error(str(e))
 
@@ -796,8 +886,11 @@ class ReportsPage(QWidget):
         self.student = QComboBox()
         self.student.currentIndexChanged.connect(lambda: self.load_student(self.student.currentData()))
         header.addWidget(self.student)
-        header.addWidget(button("↻", self.app.reload_data, False, True))
-        root.addWidget(PageHeader("Student Report", "Academic snapshot with calculated or saved grades.", actions))
+        self.term = QComboBox()
+        self.term.currentIndexChanged.connect(lambda: self.load_student(self.student.currentData()))
+        header.addWidget(self.term)
+        header.addWidget(button("Refresh", self.app.reload_data, False, True))
+        root.addWidget(PageHeader("Student Report", "Saved subject grades and a units-weighted average for the selected term.", actions))
         profile = Card()
         pl = QVBoxLayout(profile)
         pl.setContentsMargins(22, 18, 22, 18)
@@ -806,7 +899,8 @@ class ReportsPage(QWidget):
         self.info = QLabel("")
         self.info.setObjectName("subtitle")
         self.summary = QLabel("—")
-        self.summary.setObjectName("heroGrade")
+        self.summary.setObjectName("reportSummary")
+        self.summary.setWordWrap(True)
         pl.addWidget(self.name)
         pl.addWidget(self.info)
         pl.addWidget(self.summary)
@@ -814,7 +908,7 @@ class ReportsPage(QWidget):
         body = Card()
         bl = QVBoxLayout(body)
         bl.setContentsMargins(14, 14, 14, 14)
-        self.list = table(["Subject", "Class", "Section", "Semester", "Status", "Legacy Grade", "Midterm", "Final", "Overall", "Period Readiness"])
+        self.list = table(['No.','Subject Code','Description','Teacher','Units','F Grade'])
         bl.addWidget(self.list)
         root.addWidget(body, 1)
         self.refresh()
@@ -840,29 +934,29 @@ class ReportsPage(QWidget):
             fill_table(self.list, [])
             return
         try:
-            s = self.app.data.student(sid)
-            self.name.setText(f"{s[1]} {s[2]}")
-            self.info.setText(f"{s[0]}  ·  {s[4]}  ·  {s[3]}  ·  {s[5]}")
-            rows = []
-            grades = []
-            for e in self.app.data.enrollments_for_student(sid):
-                try:
-                    g = self.app.data.saved_grade(e[0])
-                    value = float(g[1]) if g else float(self.app.data.calculate_grade(e[0]))
-                    grade_text = f"{value:.2f}%"
-                    grades.append(value)
-                except Exception:
-                    grade_text = "No grade yet"
-                try:
-                    result = self.app.data.period_result(e[0])
-                    period_values = [f"{result[k]:.2f}%" for k in ['midterm', 'final', 'overall']]
-                    readiness = self.app.data.period_result_status(e[0], result)
-                except ValueError as error:
-                    period_values = ['—'] * 3
-                    readiness = str(error)
-                rows.append([f"{e[11]} — {e[12]}", e[4], e[6], e[8], e[2], grade_text] + period_values + [readiness])
-            fill_table(self.list, rows)
-            self.summary.setText(f"Average {sum(grades)/len(grades):.2f}%" if grades else "No grades available")
+            terms=sorted({(e[7],e[8]) for e in self.app.data.enrollments_for_student(sid)},reverse=True)
+            selected=self.term.currentData()
+            self.term.blockSignals(True)
+            self.term.clear()
+            for term in terms:
+                self.term.addItem(f'{term[0]} · {term[1]} Semester',term)
+            index=self.term.findData(selected)
+            if index>=0:
+                self.term.setCurrentIndex(index)
+            self.term.blockSignals(False)
+            s=self.app.data.student(sid)
+            self.name.setText(f'{s[2]}, {s[1]}')
+            if not terms:
+                self.info.setText(f'{s[0]} · {s[4]}')
+                self.summary.setText('No enrollments in this term')
+                fill_table(self.list,[])
+                self.list.setProperty('reportMetadata',[])
+                self.list.setProperty('reportSummary',[])
+                return
+            report=student_report(self.app.data,sid,*self.term.currentData())
+            self.info.setText(f'{s[0]} · {s[4]} · Year {s[6] or "not entered"}')
+            self.summary.setText('   ·   '.join(report['summary']))
+            apply_report(self.list,report)
         except Exception as e:
             self.app.error(str(e))
 
@@ -1043,7 +1137,8 @@ class StudentHub(BorderlessWindow):
         return allowed(self.account['role'], action)
 
     def apply_permissions(self):
-        actions = {'Add student': 'students', 'Enroll Student': 'enrollments',
+        actions = {'Add student': 'students', 'Edit student':'students', 'Delete student':'delete',
+                   'Update selected status':'enrollments','Remove selected enrollment':'delete', 'Enroll Student': 'enrollments',
                    'Record Score': 'scores', 'Save Legacy Grade': 'grades',
                    'Save Period Grades': 'grades', 'Period Setup': 'grading'}
         for control in self.findChildren(QPushButton):
@@ -1088,11 +1183,11 @@ class StudentHub(BorderlessWindow):
         brand.setObjectName("brandMark")
         brand.setText("SH")
         nl.addWidget(brand)
-        brand_title = QLabel("STUDENT HUB")
+        brand_title = QLabel("Student Hub")
         brand_title.setObjectName("brandTitle")
         nl.addWidget(brand_title)
         nl.addSpacing(18)
-        nl.addWidget(styled_label("MAIN MENU", "eyebrow"))
+        nl.addWidget(styled_label("WORKSPACE", "eyebrow"))
 
         self.nav_buttons = {}
         items = [
@@ -1109,7 +1204,7 @@ class StudentHub(BorderlessWindow):
         for key, text, icon_name in items:
             if key in ("academic", "import"):
                 nl.addSpacing(14)
-                nl.addWidget(styled_label("ACADEMIC RECORDS" if key == "academic" else "DATA TOOLS", "eyebrow"))
+                nl.addWidget(styled_label("SCHOOL RECORDS" if key == "academic" else "ADMINISTRATION", "eyebrow"))
             b = QToolButton()
             b.setText(text)
             b.setIcon(sidebar_icon(icon_name, MUTED))
@@ -1367,41 +1462,45 @@ STYLE = f"""
 QWidget {{ color: {TEXT}; font-family: "Segoe UI"; font-size: 13px; }}
 QWidget#window, QWidget#workspacePage, QStackedWidget, QScrollArea {{ background: {BG}; }}
 QLabel {{ background: transparent; }}
-QFrame#sidebar {{ background: white; border: 0; border-radius: 0; }}
-QScrollArea#sidebarScroll {{ background: white; }}
+QFrame#sidebar {{ background: {SURFACE_2}; border: 0; border-radius: 0; }}
+QScrollArea#sidebarScroll {{ background: {SURFACE_2}; }}
 QFrame#content {{ background: {BG}; border: 0; }}
 QFrame#topbar {{ background: {SURFACE}; border-bottom: 1px solid {BORDER}; min-height: 64px; max-height: 64px; }}
 QLabel#topbarContext, QLabel#brandMeta {{ color: #93A4C3; font-size: 10px; font-weight: 700; letter-spacing: 1px; }}
 QLabel#topbarContext {{ color: {MUTED}; }}
 QLabel#topbarDate {{ color: {MUTED}; font-size: 12px; }}
 QLabel#brandMark {{ background: {PURPLE}; color: white; border-radius: 10px; min-width: 40px; max-width: 40px; min-height: 40px; max-height: 40px; font-size: 12px; font-weight: 800; qproperty-alignment: AlignCenter; }}
-QLabel#brandTitle {{ color: {TEXT}; font-size: 16px; font-weight: 750; padding: 0; }}
-QLabel#pageTitle {{ color: {TEXT}; font-size: 27px; font-weight: 750; }}
+QLabel#brandTitle {{ color: {TEXT}; font-size: 19px; font-weight: 650; padding: 2px 0; }}
+QLabel#pageTitle {{ color: {TEXT}; font-size: 28px; font-weight: 650; }}
 QLabel#subtitle {{ color: {MUTED}; font-size: 13px; }}
-QLabel#eyebrow {{ color: {MUTED}; font-size: 10px; font-weight: 750; letter-spacing: 1px; padding: 0; }}
+QLabel#eyebrow {{ color: {MUTED}; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; padding: 0; }}
 QLabel#cardTitle, QLabel#sectionTitle {{ color: {TEXT}; font-size: 16px; font-weight: 750; }}
-QLabel#statValue {{ color: {TEXT}; font-size: 28px; font-weight: 750; }}
+QLabel#statValue {{ color: {TEXT}; font-size: 30px; font-weight: 600; }}
+QLabel#reportSummary {{ color: {PURPLE}; font-size: 16px; font-weight: 600; padding-top: 8px; }}
 QLabel#heroGrade {{ color: {PURPLE}; font-size: 30px; font-weight: 800; padding-top: 4px; }}
 QLabel#sidebarFoot {{ color: #7182A2; font-size: 10px; }}
-QFrame#sidebarIdentity {{ background: {SURFACE_2}; border: 1px solid {BORDER}; border-radius: 10px; }}
-QLabel#identityEyebrow {{ color: #93A4C3; font-size: 9px; font-weight: 800; letter-spacing: 1px; }}
+QFrame#sidebarIdentity {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 16px; }}
+QLabel#identityEyebrow {{ color: {MUTED}; font-size: 10px; font-weight: 600; letter-spacing: 1px; }}
 QLabel#identityTitle {{ color: {TEXT}; font-size: 13px; font-weight: 700; }}
-QLabel#identityMeta {{ color: {MUTED}; font-size: 10px; }}
-QFrame#card, QFrame#sectionCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; }}
-QFrame#statCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; min-height: 112px; }}
+QLabel#identityMeta {{ color: {MUTED}; font-size: 12px; }}
+QFrame#card, QFrame#sectionCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 20px; }}
+QFrame#statCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 20px; min-height: 112px; }}
 QFrame#dashboardOverview {{ background: #1C3D90; border: 0; border-radius: 12px; }}
 QLabel#overviewKicker {{ color: #BFD0FF; font-size: 10px; font-weight: 800; letter-spacing: 1px; }}
 QLabel#overviewTitle {{ color: white; font-size: 21px; font-weight: 700; }}
 QLabel#overviewDetail {{ color: #DCE6FF; font-size: 12px; }}
-QToolButton {{ background: transparent; color: {MUTED}; border: 0; border-radius: 8px; text-align: left; padding: 10px 11px; font-size: 13px; font-weight: 600; spacing: 10px; }}
+QToolButton {{ background: transparent; color: {MUTED}; border: 0; border-radius: 14px; text-align: left; padding: 10px 11px; font-size: 13px; font-weight: 500; spacing: 10px; }}
 QToolButton:hover {{ background: {SURFACE_3}; color: {TEXT}; }}
 QToolButton:checked {{ background: {PURPLE_SOFT}; color: {PURPLE}; }}
-QPushButton {{ background: {SURFACE_3}; color: {TEXT}; border: 1px solid {BORDER}; border-radius: 8px; padding: 8px 13px; min-height: 18px; font-weight: 650; }}
-QPushButton:hover {{ background: #E1E9FA; border-color: #C7D3EE; }}
+QPushButton {{ background: {SURFACE}; color: {TEXT}; border: 1px solid {BORDER}; border-radius: 17px; padding: 8px 14px; min-height: 18px; font-weight: 600; }}
+QPushButton:hover {{ background: {PURPLE_SOFT}; border-color: #B6CDBF; }}
+QPushButton:disabled {{ color: #8D978F; background: {SURFACE_2}; }}
 QPushButton[primary="true"] {{ background: {PURPLE}; color: white; border-color: {PURPLE}; }}
 QPushButton[primary="true"]:hover {{ background: {PURPLE_HOVER}; }}
-QPushButton[compact="true"] {{ padding: 6px 9px; }}
-QLineEdit, QComboBox, QDateEdit {{ background: {SURFACE}; color: {TEXT}; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 10px; min-height: 18px; }}
+QPushButton[compact="true"] {{ padding: 6px 11px; border-radius: 14px; }}
+QComboBox::drop-down {{ border: 0; width: 24px; background: transparent; }}
+QComboBox::down-arrow {{ image: url("{CHEVRON_PATH}"); width: 14px; height: 14px; }}
+QLineEdit, QComboBox, QDateEdit, QDoubleSpinBox {{ background: {SURFACE}; color: {TEXT}; border: 1px solid {BORDER}; border-radius: 13px; padding: 8px 12px; min-height: 18px; }}
 QLineEdit:focus, QComboBox:focus, QDateEdit:focus {{ border: 1px solid {PURPLE}; background: white; }}
 QComboBox QAbstractItemView {{
     background-color: {SURFACE};
@@ -1423,10 +1522,10 @@ QComboBox QAbstractItemView::item:hover {{
     background-color: {PURPLE_SOFT};
     color: {TEXT};
 }}
-QTableWidget {{ background: {SURFACE}; border: 0; border-radius: 8px; alternate-background-color: #F8FAFC; selection-background-color: {PURPLE_SOFT}; selection-color: {TEXT}; gridline-color: transparent; outline: 0; }}
-QHeaderView::section {{ background: #F8FAFC; color: {MUTED}; border: 0; border-bottom: 1px solid {BORDER}; padding: 11px 10px; font-size: 10px; font-weight: 800; }}
-QTableWidget::item {{ padding: 10px; border-bottom: 1px solid #EEF2F6; }}
-QTableWidget::item:hover {{ background: #F5F8FF; }}
+QTableWidget {{ background: {SURFACE}; border: 0; border-radius: 12px; alternate-background-color: #FAFBF9; selection-background-color: {PURPLE_SOFT}; selection-color: {TEXT}; gridline-color: transparent; outline: 0; }}
+QHeaderView::section {{ background: {SURFACE_2}; color: {MUTED}; border: 0; border-bottom: 1px solid {BORDER}; padding: 11px 10px; font-size: 11px; font-weight: 600; }}
+QTableWidget::item {{ padding: 10px; border-bottom: 1px solid {SURFACE_2}; }}
+QTableWidget::item:hover {{ background: {SURFACE_2}; }}
 QTabWidget::pane {{ border: 1px solid {BORDER}; border-radius: 10px; background: {SURFACE}; top: -1px; }}
 QTabBar::tab {{ background: transparent; color: {MUTED}; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; margin-right: 5px; font-weight: 700; }}
 QTabBar::tab:selected {{ color: {PURPLE}; border-bottom-color: {PURPLE}; background: transparent; }}
@@ -1436,11 +1535,11 @@ QLabel#windowTitle {{ color: {TEXT}; font-size: 12px; font-weight: 700; }}
 QLabel#loadStatus {{ color: {MUTED}; font-size: 11px; }}
 QWidget#titleBar QToolButton {{ padding: 0; border-radius: 6px; }}
 QToolButton#windowClose:hover {{ background: #FCE5E8; }}
-QScrollBar:vertical {{ background: {SURFACE_3}; width: 10px; border: 0; }}
-QScrollBar::handle:vertical {{ background: #B8C5D6; border-radius: 4px; min-height: 30px; }}
+QScrollBar:vertical {{ background: transparent; width: 6px; border: 0; }}
+QScrollBar::handle:vertical {{ background: #C5CDC4; border-radius: 3px; min-height: 30px; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
-QScrollBar:horizontal {{ background: {SURFACE_3}; height: 10px; border: 0; }}
-QScrollBar::handle:horizontal {{ background: #B8C5D6; border-radius: 4px; min-width: 30px; }}
+QScrollBar:horizontal {{ background: transparent; height: 6px; border: 0; }}
+QScrollBar::handle:horizontal {{ background: #C5CDC4; border-radius: 3px; min-width: 30px; }}
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
 QDialogButtonBox QPushButton {{ min-width: 88px; }}
 """

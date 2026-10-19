@@ -39,7 +39,7 @@ class ProgramDistribution(QWidget):
             label.setWordWrap(True)
             self.root.addWidget(label)
             return
-        colors = ['#3158D4', '#1593CB', '#36A77C', '#8870C7']
+        colors = ['#17775D', '#4B8D71', '#90B4A3', '#BBCDC2']
         for index, (program, count) in enumerate(counts):
             row = QWidget()
             layout = QVBoxLayout(row)
@@ -60,7 +60,7 @@ class ProgramDistribution(QWidget):
             bar.setTextVisible(False)
             bar.setFixedHeight(6)
             bar.setAccessibleName(f'{program}: {count} students, {percentage:.1f} percent')
-            bar.setStyleSheet(f'QProgressBar {{background:#EEF2F7;border:0;border-radius:3px;}} '
+            bar.setStyleSheet(f'QProgressBar {{background:#EDEFEA;border:0;border-radius:3px;}} '
                              f'QProgressBar::chunk {{background:{colors[index]};border-radius:3px;}}')
             layout.addWidget(bar)
             self.root.addWidget(row)

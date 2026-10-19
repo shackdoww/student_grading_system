@@ -26,7 +26,7 @@ class PeriodPolicyDialog(QDialog):
             weight = QDoubleSpinBox()
             weight.setRange(0.01, 99.99)
             weight.setSuffix('%')
-            weight.setValue(float(policy.get(key + '_weight', 50)))
+            weight.setValue(float(policy.get(key + '_weight', 40 if key=='midterm' else 60)))
             self.overall[key] = weight
             self.form.addRow(label + ' overall weight', weight)
         self.categories = QFormLayout()

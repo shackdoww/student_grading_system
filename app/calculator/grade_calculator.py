@@ -1,4 +1,18 @@
+from decimal import Decimal
+from math import isfinite
+
+
 class GradeCalculator:
+    @staticmethod
+    def grade_point(percentage):
+        value = Decimal(str(percentage))
+        if not value.is_finite() or not 0 <= value <= 100:
+            raise ValueError('Percentage must be a finite number between 0 and 100.')
+        for minimum, equivalent in [(97,1), (94,1.25), (91,1.5), (88,1.75),
+                                    (85,2), (82,2.25), (79,2.5), (76,2.75), (75,3)]:
+            if value >= minimum:
+                return float(equivalent)
+        return 5.0
 
     def calculate_breakdown(self, scores):
         if not scores:
@@ -12,6 +26,9 @@ class GradeCalculator:
             max_score = float(score[7])
             percentage_id = score[9]
             percentage = float(score[10])
+
+            if not all(isfinite(v) for v in (student_score, max_score, percentage)):
+                raise ValueError('Scores, maximums and weights must be finite numbers.')
 
             if max_score <= 0:
                 raise ValueError(f"Invalid max score for {component_name}.")

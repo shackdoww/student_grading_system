@@ -22,9 +22,12 @@ def delete_unreferenced(table, identifier):
             if cursor.fetchone() is None:
                 raise ValueError('Record no longer exists.')
             for child, foreign_key in dependents:
-                cursor.execute(sql.SQL('SELECT 1 FROM {} WHERE {} = %s LIMIT 1').format(
-                    sql.Identifier(child), sql.Identifier(foreign_key)), (identifier,))
-                if cursor.fetchone():
-                    raise ValueError('This record is referenced by academic records. Deletion is blocked to preserve evidence.')
+                column = sql.Identifier('class_code') if child == 'class_offerings' else sql.SQL('1')
+                cursor.execute(sql.SQL('SELECT {} FROM {} WHERE {} = %s LIMIT 1').format(
+                    column, sql.Identifier(child), sql.Identifier(foreign_key)), (identifier,))
+                dependent = cursor.fetchone()
+                if dependent:
+                    detail = f' Class {dependent[0]} depends on this record.' if child == 'class_offerings' else f' Dependent records exist in {child}.'
+                    raise ValueError('Deletion is blocked to preserve evidence.' + detail)
             cursor.execute(sql.SQL('DELETE FROM {} WHERE {} = %s').format(
                 sql.Identifier(table), sql.Identifier(key)), (identifier,))

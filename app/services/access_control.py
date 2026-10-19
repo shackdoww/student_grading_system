@@ -15,9 +15,12 @@ def allowed(role, action):
 
 def scope_snapshot(snapshot, account):
     from app.gui.data_snapshot import DataSnapshot
-    if account['role'] != 'teacher':
+    if account['role'] == 'admin':
         return snapshot
     records = snapshot.records()
+    records['grade_audit_log'] = []
+    if account['role'] != 'teacher':
+        return DataSnapshot(records)
     offerings = [r for r in records['class_offerings'] if r['teacher_id'] == account['teacher_id']]
     oids = {r['offering_id'] for r in offerings}
     enrollments = [r for r in records['enrollments'] if r['offering_id'] in oids]
@@ -69,7 +72,8 @@ class AccessGuard:
 
 
 RULES = {
-    'save': ('students', None), 'enroll': ('enrollments', None),
+    'save': ('students', None), 'create': ('students', None), 'enroll': ('enrollments', None),
+    'update_status': ('enrollments', None),
     'record_score': ('scores', lambda args, kw: ('enrollment', args[1])),
     'calculate_and_save_grade': ('grades', lambda args, kw: ('enrollment', args[0])),
     'calculate_and_save': ('grades', lambda args, kw: ('enrollment', args[0])),
@@ -92,11 +96,13 @@ class SecuredService:
             raise PermissionError('This operation is not exposed to signed-in users.')
         action, target = self._rules[name]
         def call(*args, **kwargs):
-            self._guard.require(action, target(args, kwargs) if target else None)
+            account = self._guard.require(action, target(args, kwargs) if target else None)
             if name in ['save_component', 'save_percentage']:
                 # An upsert must authorize the existing owner as well as the
                 # proposed destination, or a guessed ID could move another class's record.
                 kind = 'component' if name == 'save_component' else 'percentage'
                 self._guard.require(action, (kind, args[0], True))
-            return getattr(self._service, name)(*args, **kwargs)
+            from app.database.connection import audit_actor
+            with audit_actor(account['username']):
+                return getattr(self._service, name)(*args, **kwargs)
         return call

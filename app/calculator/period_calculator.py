@@ -1,9 +1,13 @@
 """Separate strategy for rubric period grading; legacy calculation is unchanged."""
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+from app.calculator.grade_calculator import GradeCalculator
 
 
 def number(value):
-    result = Decimal(str(value))
+    try:
+        result = Decimal(str(value))
+    except (InvalidOperation,TypeError,ValueError) as error:
+        raise ValueError('Enter a number for every score and weight; blank values are not allowed.') from error
     if not result.is_finite():
         raise ValueError('Grades and weights must be finite numbers.')
     return result
@@ -35,7 +39,7 @@ class PeriodCalculator:
         if any(w['period_id'] not in periods for w in weights):
             raise ValueError('Weights must belong to the selected periods.')
 
-    def calculate(self, policy, weights, components, scores):
+    def calculate(self, policy, weights, components, scores, include_equivalents=False):
         self.validate_policy(policy, weights, components)
         actual = {s['component_id']: s for s in scores}
         results = {}
@@ -57,4 +61,9 @@ class PeriodCalculator:
         # Use full precision until presentation/persistence, not rounded intermediates.
         results['overall'] = (results['midterm'] * number(policy['midterm_weight']) +
                               results['final'] * number(policy['final_weight'])) / 100
-        return {name: rounded(value) for name, value in results.items()}
+        output = {name: rounded(value) for name, value in results.items()}
+        if include_equivalents:
+            for key, field in [('midterm', 'midterm_equiv'), ('final', 'finals_equiv'), ('overall', 'final_equiv')]:
+                output[field] = GradeCalculator.grade_point(results[key])
+            output['remarks'] = 'Failed' if output['final_equiv'] == 5 else 'Passed'
+        return output

@@ -45,20 +45,22 @@ def export_table(parent, widget, title):
         QMessageBox.critical(parent, "Export failed", str(error))
 
 
-def report_html(title, headers, rows):
+def report_html(title, headers, rows, metadata=None, summary=None):
     heading = "".join(f"<th>{escape(str(value))}</th>" for value in headers)
     body = "".join("<tr>" + "".join(f"<td>{escape(str(value))}</td>" for value in row) + "</tr>" for row in rows)
+    details = ''.join(f'<p>{escape(str(line))}</p>' for line in (metadata or []))
+    totals = ''.join(f'<p><b>{escape(str(line))}</b></p>' for line in (summary or []))
     return ("<style>body {font-family: sans-serif; font-size: 10pt;} "
             "th {background: #e9eeff; text-align: left;} td, th {padding: 6px;} "
             "table {border-collapse: collapse;}</style>"
-            f"<h1>Student Hub</h1><h2>{escape(title)}</h2><p>{len(rows)} records</p>"
-            f'<table border="1" cellspacing="0" width="100%"><thead><tr>{heading}</tr></thead><tbody>{body}</tbody></table>')
+            f"<h1>Student Hub</h1><h2>{escape(title)}</h2>{details}"
+            f'<table border="1" cellspacing="0" width="100%"><thead><tr>{heading}</tr></thead><tbody>{body}</tbody></table>{totals}')
 
 
 def print_table(parent, widget, title):
     headers, rows = table_data(widget)
     document = QTextDocument()
-    document.setHtml(report_html(title, headers, rows))
+    document.setHtml(report_html(title, headers, rows, widget.property('reportMetadata'), widget.property('reportSummary')))
     printer = QPrinter(QPrinter.HighResolution)
     printer.setPageOrientation(QPageLayout.Landscape)
     printer.setPageMargins(QMarginsF(12, 12, 12, 12), QPageLayout.Millimeter)

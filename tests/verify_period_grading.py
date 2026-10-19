@@ -29,13 +29,16 @@ def main():
             accounts_migration = (root / 'app/database/migration_003_accounts.sql').read_text(encoding='utf-8')
             connection.execute(accounts_migration)
             connection.execute(accounts_migration)
-            connection.execute('INSERT INTO students VALUES (%s,%s,%s,%s,%s,%s)', ('S', 'Test', 'Student', 'test@example.test', 'CS', 'Active'))
+            checklist_migration = (root / 'app/database/migration_004_checklist.sql').read_text(encoding='utf-8')
+            connection.execute(checklist_migration)
+            connection.execute(checklist_migration)
+            connection.execute('INSERT INTO students (student_id,first_name,last_name,email,program,status) VALUES (%s,%s,%s,%s,%s,%s)', ('S', 'Test', 'Student', 'test@example.test', 'CS', 'Active'))
             connection.execute('INSERT INTO teachers VALUES (%s,%s,%s,%s,%s,%s)', ('T', 'Test', 'Teacher', 'teacher@example.test', 'CS', 'Active'))
             connection.execute('INSERT INTO subjects VALUES (%s,%s,%s,%s,%s)', ('SUB', 'CS', 'Computing', '', 3))
             connection.execute('INSERT INTO class_offerings VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)', ('O', 'CS-A', 'Monday', 'A', '2026', '1', 'R', 'T', 'SUB'))
             connection.execute('INSERT INTO enrollments VALUES (%s,CURRENT_DATE,%s,%s,%s)', ('E', 'Active', 'S', 'O'))
             for pid in ['M', 'F']:
-                connection.execute('INSERT INTO grading_periods VALUES (%s,%s,CURRENT_DATE,CURRENT_DATE,%s,%s)', (pid, pid, '2026', '1'))
+                connection.execute('INSERT INTO grading_periods (period_id,name,start_date,end_date,school_year,semester) VALUES (%s,%s,CURRENT_DATE,CURRENT_DATE,%s,%s)', (pid, pid, '2026', '1'))
             connection.execute('INSERT INTO grade_percentages VALUES (%s,%s,%s)', ('P', 100, 'O'))
             for pid, score in [('M', 40), ('F', 45)]:
                 connection.execute('INSERT INTO grade_components VALUES (%s,%s,%s,%s,%s,%s,%s)', (pid+'C', pid+'Exam', 'Exam', 50, '', pid, 'P'))
@@ -102,8 +105,8 @@ def main():
             assert not hasattr(window.enrollments, 'enrollment_id')
             headers, rows = table_data(page.grade_sheet)
             assert 'Enrollment' not in headers
-            assert rows[0][headers.index('Overall')] == '84.00%'
-            assert 'Saved results match' in rows[0][-1]
+            assert headers == ['No.','Student','Course','MG','FG']
+            assert rows[0][headers.index('FG')] == '2.25'
             dialog = PeriodPolicyDialog(window, 'O', snapshot.records())
             read_policy, read_weights = dialog.values()
             assert read_policy['midterm_weight'] == 60
@@ -111,11 +114,11 @@ def main():
             dialog.close()
             window.show_page('reports')
             report = window.pages['reports']
-            assert report.list.item(0, 8).text() == '84.00%'
+            assert report.list.item(0, 5).text() == '2.25'
             window.close()
         from app.services.enrollment_service import EnrollmentService
         with connect() as connection:
-            connection.execute('INSERT INTO students VALUES (%s,%s,%s,%s,%s,%s)', ('S2', 'Another', 'Student', 'second@example.test', 'CS', 'Active'))
+            connection.execute('INSERT INTO students (student_id,first_name,last_name,email,program,status) VALUES (%s,%s,%s,%s,%s,%s)', ('S2', 'Another', 'Student', 'second@example.test', 'CS', 'Active'))
         with patch('app.repositories.student_repository.get_connection', connect), \
              patch('app.repositories.class_offering_repository.get_connection', connect), \
              patch('app.repositories.enrollment_repository.get_connection', connect):

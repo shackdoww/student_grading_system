@@ -50,8 +50,8 @@ class AcademicService:
         return subject
 
     def save_teacher(self, *args):
-        if not all(str(value).strip() for value in args):
-            raise ValueError("All teacher fields are required.")
+        if not all(str(value or '').strip() for i,value in enumerate(args) if i != 3):
+            raise ValueError('Teacher ID, names, department and status are required.')
         self.teachers.save(*args)
 
     def save_subject(self, subject_id, subject_code, subject_name, description, units):
@@ -79,13 +79,15 @@ class AcademicService:
         )
 
     def save_period(self, period_id, name, start_date, end_date,
-                    school_year, semester):
+                    school_year, semester, period_order=1):
         if not all([period_id, name, start_date, end_date, school_year, semester]):
             raise ValueError("All grading period fields are required.")
         if end_date < start_date:
             raise ValueError("End date cannot be earlier than start date.")
+        if not str(period_order).isdigit() or int(period_order) < 1:
+            raise ValueError('Period order must be a positive integer.')
         self.periods.save(
-            period_id, name, start_date, end_date, school_year, semester
+            period_id, name, start_date, end_date, school_year, semester, int(period_order)
         )
 
     def save_percentage(self, percentage_id, percentage, offering_id):
