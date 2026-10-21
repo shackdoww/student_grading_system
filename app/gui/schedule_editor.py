@@ -17,6 +17,7 @@ from app.services.scheduling import normalize_meetings
 class ScheduleEditor(QWidget):
     def __init__(self, parent=None, meetings=None, legacy_text=""):
         super().__init__(parent)
+        self.setMinimumWidth(460)
         self.root = QVBoxLayout(self)
         self.root.setContentsMargins(0, 0, 0, 0)
         self.blocks = []

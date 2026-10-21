@@ -27,6 +27,17 @@ The first launch creates your initial Admin account; no default password is
 provided. A graphical desktop/display is required for interactive use.
 `STUDENT_HUB_REDUCED_MOTION=1` reduces animations.
 
+### Desktop appearance
+
+The interface uses a charcoal and lime theme across the dashboard, tables,
+editors, grading controls and sign-in screen. Navigation starts as a compact
+icon rail; hover for page names or use **Expand navigation** below the SH mark
+to show labels. Expanding the rail preserves the current page and role access.
+Keyboard focus remains visible, and status labels retain their text as well as
+their color. The existing reduced-motion setting also applies to this theme.
+
+![Student Hub dark dashboard](docs/screenshots/student-hub-dark.png)
+
 ### Existing databases
 
 Close the application and back up the database before an upgrade. `--preflight` reports inventories and

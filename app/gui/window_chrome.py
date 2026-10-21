@@ -3,6 +3,7 @@
 from PySide6.QtCore import QEvent, QRect, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QToolButton, QWidget
+from app.gui.theme import MUTED
 
 
 def window_icon(kind):
@@ -10,7 +11,7 @@ def window_icon(kind):
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
-    painter.setPen(QPen(QColor('#64748B'), 1.5))
+    painter.setPen(QPen(QColor(MUTED), 1.5))
     if kind == 'minimize':
         painter.drawLine(4, 10, 14, 10)
     elif kind == 'maximize':

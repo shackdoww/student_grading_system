@@ -36,30 +36,14 @@ from app.services.record_deletion_service import RecordDeletionService
 from app.services.period_grading_service import PeriodGradingService
 
 
-BG = "#F6F7F5"
-SURFACE = "#FFFFFF"
-SURFACE_2 = "#F1F3EF"
-SURFACE_3 = "#EDEFEA"
-TEXT = "#202824"
-MUTED = "#68756C"
-PURPLE = "#17775D"
-PURPLE_HOVER = "#105D48"
-PURPLE_SOFT = "#E5F2E9"
-MINT = "#DCF4EA"
-MINT_TEXT = "#16785A"
-BLUE = "#E5EFFF"
-BLUE_TEXT = "#3158D4"
-PEACH = "#FFF0E8"
-PEACH_TEXT = "#B45309"
-YELLOW = "#FFF7D6"
-YELLOW_TEXT = "#9A6700"
-BORDER = "#E0E6DF"
+from app.gui.theme import (
+    ACCENT, ACCENT_SOFT, MUTED, ON_ACCENT, STYLE, apply_theme,
+)
+
 ENROLLMENT_ROLE = Qt.UserRole + 1
-DANGER = "#C2414B"
 
 
 ICON_DIR = os.path.join(os.path.dirname(__file__), "assets", "icons")
-CHEVRON_PATH = os.path.join(ICON_DIR, 'chevron-down.svg').replace('\\', '/')
 
 def sidebar_icon(name, color, size=22):
     path = os.path.join(ICON_DIR, name)
@@ -115,10 +99,10 @@ class StatCard(Card):
         dot.setObjectName('statIcon')
         dot.setFixedSize(42, 42)
         dot.setAlignment(Qt.AlignCenter)
-        dot.setStyleSheet(f'QLabel#statIcon {{background:{PURPLE_SOFT};border-radius:14px;}}')
+        dot.setStyleSheet(f'QLabel#statIcon {{background:{ACCENT_SOFT};border-radius:14px;}}')
         icon_name = {"Students": "users-round.svg", "Enrollments": "file-text.svg",
                      "Teachers": "graduation-cap.svg", "Class Offerings": "book-open.svg"}.get(label, "chart.svg")
-        dot.setPixmap(sidebar_icon(icon_name, PURPLE, 24).pixmap(24, 24))
+        dot.setPixmap(sidebar_icon(icon_name, ACCENT, 24).pixmap(24, 24))
         top.addWidget(title)
         top.addStretch()
         top.addWidget(dot)
@@ -184,6 +168,15 @@ def fill_table(t, rows):
         for c, value in enumerate(values):
             item = QTableWidgetItem("" if value is None else str(value))
             item.setData(Qt.UserRole, value)
+            heading = t.horizontalHeaderItem(c)
+            if heading and heading.text().lower() in ('status', 'remarks'):
+                status_color = {
+                    'Active': '#C8EB8A', 'Enrolled': '#C8EB8A', 'Passed': '#C8EB8A',
+                    'Inactive': '#F39591', 'Dropped': '#F39591', 'Failed': '#F39591',
+                    'Incomplete': '#EBC779',
+                }.get(str(value))
+                if status_color:
+                    item.setForeground(QColor(status_color))
             t.setItem(r, c, item)
     t.setUpdatesEnabled(True)
     t.blockSignals(blocked)
@@ -302,7 +295,7 @@ class DashboardPage(QWidget):
 
         stats = QGridLayout()
         stats.setSpacing(14)
-        self.students_stat = StatCard("Students", "0", PURPLE)
+        self.students_stat = StatCard("Students", "0", ACCENT)
         self.enrollments_stat = StatCard("Enrollments", "0", "#1593CB")
         self.teachers_stat = StatCard("Teachers", "0", "#36A77C")
         self.classes_stat = StatCard("Class Offerings", "0", "#8870C7")
@@ -347,7 +340,7 @@ class DashboardPage(QWidget):
         self.student_badge = QLabel('SH')
         self.student_badge.setFixedSize(40, 40)
         self.student_badge.setAlignment(Qt.AlignCenter)
-        self.student_badge.setStyleSheet(f'background:{PURPLE_SOFT};color:{PURPLE};border-radius:12px;font-weight:700;')
+        self.student_badge.setStyleSheet(f'background:{ACCENT_SOFT};color:{ACCENT};border-radius:12px;font-weight:700;')
         il.addWidget(self.student_badge)
         self.selected_name = QLabel("Select a student")
         self.selected_name.setObjectName("cardTitle")
@@ -639,7 +632,7 @@ class GradesPage(QWidget):
         root.addWidget(PageHeader("Class Grades", "Select a class, inspect its roster, and record scores.", actions))
 
         self.summary = QHBoxLayout()
-        self.count = StatCard("Students", "0", PURPLE)
+        self.count = StatCard("Students", "0", ACCENT)
         self.average = StatCard("Class Average", "—", "#55BE8C")
         self.summary.addWidget(self.count)
         self.summary.addWidget(self.average)
@@ -1168,7 +1161,7 @@ class StudentHub(BorderlessWindow):
         central.setObjectName("window")
         self.setCentralWidget(central)
         outer = QVBoxLayout(central)
-        outer.setContentsMargins(5, 5, 5, 5)
+        outer.setContentsMargins(8, 5, 8, 8)
         outer.setSpacing(0)
         self.title_bar = TitleBar(self)
         outer.addWidget(self.title_bar)
@@ -1176,14 +1169,15 @@ class StudentHub(BorderlessWindow):
         outer.addWidget(body, 1)
         shell = QHBoxLayout(body)
         shell.setContentsMargins(0, 0, 0, 0)
-        shell.setSpacing(0)
+        shell.setSpacing(8)
 
         nav = QFrame()
         nav.setObjectName("sidebar")
-        nav.setFixedWidth(210)
+        self.sidebar = nav
+        self.sidebar_labels = []
         nl = QVBoxLayout(nav)
-        nl.setContentsMargins(18, 22, 18, 18)
-        nl.setSpacing(6)
+        nl.setContentsMargins(12, 14, 12, 12)
+        nl.setSpacing(4)
 
         brand = QLabel("S")
         brand.setObjectName("brandMark")
@@ -1192,8 +1186,20 @@ class StudentHub(BorderlessWindow):
         brand_title = QLabel("Student Hub")
         brand_title.setObjectName("brandTitle")
         nl.addWidget(brand_title)
-        nl.addSpacing(18)
-        nl.addWidget(styled_label("WORKSPACE", "eyebrow"))
+        self.sidebar_labels.append(brand_title)
+        self.sidebar_toggle = QToolButton()
+        self.sidebar_toggle.setObjectName('sidebarToggle')
+        self.sidebar_toggle.setIcon(sidebar_icon('panel-left.svg', MUTED))
+        self.sidebar_toggle.setIconSize(QSize(20, 20))
+        self.sidebar_toggle.setFixedHeight(36)
+        self.sidebar_toggle.clicked.connect(
+            lambda: self.set_sidebar_expanded(not self.sidebar_expanded))
+        nl.addSpacing(12)
+        nl.addWidget(self.sidebar_toggle)
+        nl.addSpacing(10)
+        section_label = styled_label("WORKSPACE", "eyebrow")
+        self.sidebar_labels.append(section_label)
+        nl.addWidget(section_label)
 
         self.nav_buttons = {}
         items = [
@@ -1209,10 +1215,16 @@ class StudentHub(BorderlessWindow):
             items.extend([('accounts', 'Accounts', 'users-round.svg'), ('records', 'Data Records', 'file-text.svg')])
         for key, text, icon_name in items:
             if key in ("academic", "import"):
-                nl.addSpacing(14)
-                nl.addWidget(styled_label("SCHOOL RECORDS" if key == "academic" else "ADMINISTRATION", "eyebrow"))
+                nl.addSpacing(10)
+                section_label = styled_label("SCHOOL RECORDS" if key == "academic" else "ADMINISTRATION", "eyebrow")
+                self.sidebar_labels.append(section_label)
+                nl.addWidget(section_label)
             b = QToolButton()
             b.setText(text)
+            b.setToolTip(text)
+            b.setAccessibleName(text)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setFixedHeight(40)
             b.setIcon(sidebar_icon(icon_name, MUTED))
             b.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
             b.setIconSize(QSize(21, 21))
@@ -1220,7 +1232,7 @@ class StudentHub(BorderlessWindow):
             b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             b.setProperty("icon_name", icon_name)
             b.normal_icon = sidebar_icon(icon_name, MUTED)
-            b.active_icon = sidebar_icon(icon_name, PURPLE)
+            b.active_icon = sidebar_icon(icon_name, ON_ACCENT)
             b.clicked.connect(lambda checked=False, k=key: self.show_page(k))
             nl.addWidget(b)
             self.nav_buttons[key] = b
@@ -1229,9 +1241,18 @@ class StudentHub(BorderlessWindow):
         identity = QFrame()
         identity.setObjectName("sidebarIdentity")
         il = QVBoxLayout(identity)
-        il.setContentsMargins(14, 12, 14, 12)
+        il.setContentsMargins(0, 10, 0, 4)
         il.setSpacing(5)
-        il.addWidget(styled_label("YOUR WORKSPACE", "identityEyebrow"))
+        self.account_initials = ''.join(part[0] for part in self.account['full_name'].split()[:2]).upper() or 'SH'
+        avatar = QLabel(self.account_initials)
+        avatar.setObjectName('accountAvatar')
+        avatar.setFixedSize(32, 32)
+        avatar.setAlignment(Qt.AlignCenter)
+        avatar.setToolTip(f"{self.account['full_name']} · {ROLES[self.account['role']]}")
+        il.addWidget(avatar, 0, Qt.AlignHCenter)
+        workspace_label = styled_label("YOUR WORKSPACE", "identityEyebrow")
+        self.sidebar_labels.append(workspace_label)
+        il.addWidget(workspace_label)
         identity_title = QLabel(self.account['full_name'])
         identity_title.setObjectName("identityTitle")
         identity_title.setWordWrap(True)
@@ -1239,8 +1260,16 @@ class StudentHub(BorderlessWindow):
         identity_meta = QLabel(ROLES[self.account['role']])
         identity_meta.setObjectName("identityMeta")
         il.addWidget(identity_meta)
+        self.sidebar_labels.extend([identity_title, identity_meta])
         nl.addWidget(identity)
-        nl.addWidget(button('Sign out', self.sign_out, compact=True))
+        self.sign_out_button = QToolButton()
+        self.sign_out_button.setText('Sign out')
+        self.sign_out_button.setToolTip('Sign out')
+        self.sign_out_button.setAccessibleName('Sign out')
+        self.sign_out_button.setIcon(sidebar_icon('log-out.svg', MUTED))
+        self.sign_out_button.setFixedHeight(40)
+        self.sign_out_button.clicked.connect(self.sign_out)
+        nl.addWidget(self.sign_out_button)
 
         nl.addSpacing(10)
 
@@ -1249,10 +1278,11 @@ class StudentHub(BorderlessWindow):
         sidebar_scroll.setObjectName('sidebarScroll')
         sidebar_scroll.setWidgetResizable(True)
         sidebar_scroll.setFrameShape(QFrame.NoFrame)
-        sidebar_scroll.setFixedWidth(220)
+        self.sidebar_scroll = sidebar_scroll
         sidebar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         sidebar_scroll.setWidget(nav)
         shell.addWidget(sidebar_scroll)
+        self.set_sidebar_expanded(False)
 
         content = QFrame()
         content.setObjectName("content")
@@ -1262,7 +1292,7 @@ class StudentHub(BorderlessWindow):
         topbar = QFrame()
         topbar.setObjectName("topbar")
         tl = QHBoxLayout(topbar)
-        tl.setContentsMargins(30, 0, 32, 0)
+        tl.setContentsMargins(24, 0, 24, 0)
         tl.addWidget(styled_label("SCHOOL MANAGEMENT", "topbarContext"))
         tl.addStretch()
         current_date = QLabel(date.today().strftime("%A, %d %B %Y"))
@@ -1276,6 +1306,13 @@ class StudentHub(BorderlessWindow):
         tl.addWidget(button("Export CSV", self.export_current, compact=True))
         tl.addWidget(button("Print", self.print_current, compact=True))
         tl.addWidget(button("Refresh", self.reload_data, compact=True))
+        profile = QLabel(self.account_initials)
+        profile.setObjectName('accountAvatar')
+        profile.setFixedSize(32, 32)
+        profile.setAlignment(Qt.AlignCenter)
+        profile.setToolTip(f"{self.account['full_name']} · {ROLES[self.account['role']]}")
+        tl.addSpacing(6)
+        tl.addWidget(profile)
         cl.addWidget(topbar)
         self.stack = QStackedWidget()
         self.stack.setObjectName("pageStack")
@@ -1319,6 +1356,21 @@ class StudentHub(BorderlessWindow):
         for control in self.findChildren(QToolButton):
             control.motion_feedback = InteractionFeedback(control)
         self.show_page("dashboard")
+
+    def set_sidebar_expanded(self, expanded):
+        """Keep the same controls, focus and permissions when toggling labels."""
+        self.sidebar_expanded = expanded
+        width = 224 if expanded else 80
+        self.sidebar.setFixedWidth(width)
+        self.sidebar_scroll.setFixedWidth(width)
+        style = Qt.ToolButtonTextBesideIcon if expanded else Qt.ToolButtonIconOnly
+        for control in [*self.nav_buttons.values(), self.sign_out_button]:
+            control.setToolButtonStyle(style)
+        for label in self.sidebar_labels:
+            label.setVisible(expanded)
+        action = 'Collapse navigation' if expanded else 'Expand navigation'
+        self.sidebar_toggle.setToolTip(action)
+        self.sidebar_toggle.setAccessibleName(action)
 
     def show_page(self, key):
         if key == 'import' and not self.can('import'):
@@ -1469,96 +1521,10 @@ class StudentHub(BorderlessWindow):
         QMessageBox.information(self, "Saved", message)
 
 
-STYLE = f"""
-QWidget {{ color: {TEXT}; font-family: "Segoe UI"; font-size: 13px; }}
-QWidget#window, QWidget#workspacePage, QStackedWidget, QScrollArea {{ background: {BG}; }}
-QLabel {{ background: transparent; }}
-QFrame#sidebar {{ background: {SURFACE_2}; border: 0; border-radius: 0; }}
-QScrollArea#sidebarScroll {{ background: {SURFACE_2}; }}
-QFrame#content {{ background: {BG}; border: 0; }}
-QFrame#topbar {{ background: {SURFACE}; border-bottom: 1px solid {BORDER}; min-height: 64px; max-height: 64px; }}
-QLabel#topbarContext, QLabel#brandMeta {{ color: #93A4C3; font-size: 10px; font-weight: 700; letter-spacing: 1px; }}
-QLabel#topbarContext {{ color: {MUTED}; }}
-QLabel#topbarDate {{ color: {MUTED}; font-size: 12px; }}
-QLabel#brandMark {{ background: {PURPLE}; color: white; border-radius: 10px; min-width: 40px; max-width: 40px; min-height: 40px; max-height: 40px; font-size: 12px; font-weight: 800; qproperty-alignment: AlignCenter; }}
-QLabel#brandTitle {{ color: {TEXT}; font-size: 19px; font-weight: 650; padding: 2px 0; }}
-QLabel#pageTitle {{ color: {TEXT}; font-size: 28px; font-weight: 650; }}
-QLabel#subtitle {{ color: {MUTED}; font-size: 13px; }}
-QLabel#eyebrow {{ color: {MUTED}; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; padding: 0; }}
-QLabel#cardTitle, QLabel#sectionTitle {{ color: {TEXT}; font-size: 16px; font-weight: 750; }}
-QLabel#statValue {{ color: {TEXT}; font-size: 30px; font-weight: 600; }}
-QLabel#reportSummary {{ color: {PURPLE}; font-size: 16px; font-weight: 600; padding-top: 8px; }}
-QLabel#heroGrade {{ color: {PURPLE}; font-size: 30px; font-weight: 800; padding-top: 4px; }}
-QLabel#sidebarFoot {{ color: #7182A2; font-size: 10px; }}
-QFrame#sidebarIdentity {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 16px; }}
-QLabel#identityEyebrow {{ color: {MUTED}; font-size: 10px; font-weight: 600; letter-spacing: 1px; }}
-QLabel#identityTitle {{ color: {TEXT}; font-size: 13px; font-weight: 700; }}
-QLabel#identityMeta {{ color: {MUTED}; font-size: 12px; }}
-QFrame#card, QFrame#sectionCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 20px; }}
-QFrame#statCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 20px; min-height: 112px; }}
-QFrame#dashboardOverview {{ background: #1C3D90; border: 0; border-radius: 12px; }}
-QLabel#overviewKicker {{ color: #BFD0FF; font-size: 10px; font-weight: 800; letter-spacing: 1px; }}
-QLabel#overviewTitle {{ color: white; font-size: 21px; font-weight: 700; }}
-QLabel#overviewDetail {{ color: #DCE6FF; font-size: 12px; }}
-QToolButton {{ background: transparent; color: {MUTED}; border: 0; border-radius: 14px; text-align: left; padding: 10px 11px; font-size: 13px; font-weight: 500; spacing: 10px; }}
-QToolButton:hover {{ background: {SURFACE_3}; color: {TEXT}; }}
-QToolButton:checked {{ background: {PURPLE_SOFT}; color: {PURPLE}; }}
-QPushButton {{ background: {SURFACE}; color: {TEXT}; border: 1px solid {BORDER}; border-radius: 17px; padding: 8px 14px; min-height: 18px; font-weight: 600; }}
-QPushButton:hover {{ background: {PURPLE_SOFT}; border-color: #B6CDBF; }}
-QPushButton:disabled {{ color: #8D978F; background: {SURFACE_2}; }}
-QPushButton[primary="true"] {{ background: {PURPLE}; color: white; border-color: {PURPLE}; }}
-QPushButton[primary="true"]:hover {{ background: {PURPLE_HOVER}; }}
-QPushButton[compact="true"] {{ padding: 6px 11px; border-radius: 14px; }}
-QComboBox::drop-down {{ border: 0; width: 24px; background: transparent; }}
-QComboBox::down-arrow {{ image: url("{CHEVRON_PATH}"); width: 14px; height: 14px; }}
-QLineEdit, QComboBox, QDateEdit, QDoubleSpinBox {{ background: {SURFACE}; color: {TEXT}; border: 1px solid {BORDER}; border-radius: 13px; padding: 8px 12px; min-height: 18px; }}
-QLineEdit:focus, QComboBox:focus, QDateEdit:focus {{ border: 1px solid {PURPLE}; background: white; }}
-QComboBox QAbstractItemView {{
-    background-color: {SURFACE};
-    color: {TEXT};
-    selection-background-color: {PURPLE_SOFT};
-    selection-color: {TEXT};
-    border: 1px solid {BORDER};
-    outline: 0;
-    padding: 4px;
-}}
-QComboBox QAbstractItemView::item {{
-    background-color: {SURFACE};
-    color: {TEXT};
-    min-height: 28px;
-    padding: 5px 10px;
-}}
-QComboBox QAbstractItemView::item:selected,
-QComboBox QAbstractItemView::item:hover {{
-    background-color: {PURPLE_SOFT};
-    color: {TEXT};
-}}
-QTableWidget {{ background: {SURFACE}; border: 0; border-radius: 12px; alternate-background-color: #FAFBF9; selection-background-color: {PURPLE_SOFT}; selection-color: {TEXT}; gridline-color: transparent; outline: 0; }}
-QHeaderView::section {{ background: {SURFACE_2}; color: {MUTED}; border: 0; border-bottom: 1px solid {BORDER}; padding: 11px 10px; font-size: 11px; font-weight: 600; }}
-QTableWidget::item {{ padding: 10px; border-bottom: 1px solid {SURFACE_2}; }}
-QTableWidget::item:hover {{ background: {SURFACE_2}; }}
-QTabWidget::pane {{ border: 1px solid {BORDER}; border-radius: 10px; background: {SURFACE}; top: -1px; }}
-QTabBar::tab {{ background: transparent; color: {MUTED}; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; margin-right: 5px; font-weight: 700; }}
-QTabBar::tab:selected {{ color: {PURPLE}; border-bottom-color: {PURPLE}; background: transparent; }}
-QDialog {{ background: {SURFACE}; }}
-QWidget#titleBar {{ background: white; border-bottom: 1px solid {BORDER}; }}
-QLabel#windowTitle {{ color: {TEXT}; font-size: 12px; font-weight: 700; }}
-QLabel#loadStatus {{ color: {MUTED}; font-size: 11px; }}
-QWidget#titleBar QToolButton {{ padding: 0; border-radius: 6px; }}
-QToolButton#windowClose:hover {{ background: #FCE5E8; }}
-QScrollBar:vertical {{ background: transparent; width: 6px; border: 0; }}
-QScrollBar::handle:vertical {{ background: #C5CDC4; border-radius: 3px; min-height: 30px; }}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
-QScrollBar:horizontal {{ background: transparent; height: 6px; border: 0; }}
-QScrollBar::handle:horizontal {{ background: #C5CDC4; border-radius: 3px; min-width: 30px; }}
-QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
-QDialogButtonBox QPushButton {{ min-width: 88px; }}
-"""
 
 def run():
     app = QApplication.instance() or QApplication(sys.argv)
-    app.setStyle("Fusion")
-    app.setStyleSheet(STYLE)
+    apply_theme(app)
     auth = AccountService()
     while True:
         login = LoginDialog(auth)

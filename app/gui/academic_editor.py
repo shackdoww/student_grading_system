@@ -28,7 +28,9 @@ class RecordDialog(QDialog):
     def __init__(self, parent, title, fields, records, record=None):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.setMinimumWidth(460)
+        # Weekdays, two AM/PM controls and Remove block stay visible even when
+        # the dialog is resized to its minimum width.
+        self.setMinimumWidth(680 if 'schedule' in fields else 460)
         self.fields = fields
         self.inputs = {}
         root = QVBoxLayout(self)

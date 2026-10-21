@@ -5,6 +5,7 @@ import os
 from PySide6.QtCore import QEasingCurve, QEvent, Property, QPropertyAnimation, Qt
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QWidget
+from app.gui.theme import ACCENT, BG
 
 
 def reduced_motion():
@@ -64,7 +65,7 @@ class PageReveal(QWidget):
         if self._snapshot is None:
             return
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#F5F7FA"))
+        painter.fillRect(self.rect(), QColor(BG))
         painter.setOpacity(0.4 + 0.6 * self._progress)
         painter.drawPixmap(0, round(10 * (1 - self._progress)), self._snapshot)
         painter.end()
@@ -129,7 +130,7 @@ class InteractionFeedback(QWidget):
             return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        color = QColor("#3158D4")
+        color = QColor(ACCENT)
         color.setAlphaF(self._strength)
         painter.setPen(Qt.NoPen)
         painter.setBrush(color)
