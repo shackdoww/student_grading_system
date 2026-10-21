@@ -90,3 +90,94 @@ def test_canonical_class_import_requires_explicit_times(school):
     assert service.validate(datasets), (
         "Ambiguous text must not bypass timetable checks."
     )
+
+
+def test_duplicate_csv_primary_keys_are_rejected_without_overwriting(school):
+    service = SchoolDataImportService()
+    datasets = {table: [] for table, *_ in DATASETS}
+    datasets["student"] = [
+        dict(
+            student_id="NEW",
+            first_name=first,
+            last_name="Student",
+            program="BSCS",
+            status="Active",
+            year_level=2,
+        )
+        for first in ("First", "Second")
+    ]
+    assert any("duplicate" in e.lower() for e in service.validate(datasets))
+    with pytest.raises(ValueError):
+        service.import_all(datasets)
+    with school() as c:
+        assert (
+            c.execute("SELECT count(*) FROM student WHERE student_id='NEW'").fetchone()[
+                0
+            ]
+            == 0
+        )
+
+
+@pytest.mark.parametrize("include_class", [True, False])
+def test_import_replaces_meeting_set_and_display_together(school, include_class):
+    service = SchoolDataImportService()
+    with school() as c:
+        c.execute(
+            "INSERT INTO class_meeting(meeting_id,class_id,weekday,start_time,end_time) VALUES ('OLD','C',1,'09:00','10:00')"
+        )
+    datasets = {table: [] for table, *_ in DATASETS}
+    datasets["class"] = [
+        dict(
+            class_id="C",
+            class_code="CSPC103-A",
+            subject_id="U",
+            teacher_id="T",
+            section="A",
+            school_year="2026-2027",
+            semester="1st",
+            schedule="Friday",
+            room="ROOM",
+        )
+    ]
+    datasets["class_meeting"] = [
+        dict(
+            meeting_id="NEW",
+            class_id="C",
+            weekday=5,
+            start_time="11:00",
+            end_time="12:00",
+        )
+    ]
+    if not include_class:
+        datasets["class"] = []
+    service.import_all(datasets)
+    with school() as c:
+        assert c.execute("SELECT weekday FROM class_meeting").fetchall() == [(5,)]
+        assert (
+            c.execute("SELECT schedule FROM class WHERE class_id='C'").fetchone()[0]
+            == "F 11:00–12:00"
+        )
+
+
+def test_import_can_clear_previously_supplied_optional_values(school):
+    service = SchoolDataImportService()
+    with school() as c:
+        c.execute("UPDATE student SET email='old@example.edu' WHERE student_id='S'")
+    datasets = {table: [] for table, *_ in DATASETS}
+    datasets["student"] = [
+        dict(
+            student_id="S",
+            first_name="Juan",
+            last_name="Dela Cruz",
+            program="BSCS",
+            status="Active",
+            year_level=2,
+            email="",
+        )
+    ]
+    service.import_all(datasets)
+    with school() as c:
+        assert (
+            c.execute("SELECT email FROM student WHERE student_id='S'").fetchone()[0]
+            is None
+        )

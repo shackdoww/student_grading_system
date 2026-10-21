@@ -72,3 +72,5 @@ original column explains which cases produced each row; it is not a username.
 Signed-in users are recorded separately. Existing archives are outside the
 canonical domain counts, and authentication/policy/timetable metadata is not
 extra rubric domain data.
+
+Final verification and independent review: [completion evidence](superpowers/reviews/2026-10-21-rubric-alignment.md).

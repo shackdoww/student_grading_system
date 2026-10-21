@@ -152,3 +152,5 @@ original-data archive preserve their values.
 Verification before final review: 120 tests passed with PostgreSQL 17 enabled,
 including all 52 rubric cases and a fresh GUI-process restart. Final review and
 any resulting fixes are recorded in the branch history and completion report.
+
+Final review: four Important findings reproduced and fixed; 126 tests passed afterward. See `docs/superpowers/reviews/2026-10-21-rubric-alignment.md`.

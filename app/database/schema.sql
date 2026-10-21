@@ -201,7 +201,13 @@ BEGIN
     IF maximum IS NULL OR NEW.score<0 OR NEW.score>maximum THEN
         RAISE EXCEPTION 'Score must be between zero and component maximum.';
     END IF;
-    IF NOT EXISTS(SELECT 1 FROM grade_percentage WHERE class_id=cid AND component_id=NEW.component_id) THEN
+    -- Serialize against assignment removal in both transaction orders. A physical
+    -- no-op UPDATE also advances the MVCC version: a policy transaction with an
+    -- older SERIALIZABLE snapshot must retry instead of missing this new score.
+    -- The provenance/audit triggers preserve all values and suppress no-op logs.
+    UPDATE grade_percentage SET percentage=percentage
+      WHERE class_id=cid AND component_id=NEW.component_id;
+    IF NOT FOUND THEN
         RAISE EXCEPTION 'Score component must be assigned to the enrolled class.';
     END IF;
     RETURN NEW;

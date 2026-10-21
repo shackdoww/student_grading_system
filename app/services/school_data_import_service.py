@@ -91,6 +91,19 @@ NUMBERS = {
     "final_equiv",
 }
 INTEGERS = {"units", "year_level", "period_order", "weekday"}
+NULLABLE = {
+    "email",
+    "description",
+    "room",
+    "remarks",
+    "year_level",
+    "midterm_grade",
+    "finals_grade",
+    "overall_grade",
+    "midterm_equiv",
+    "finals_equiv",
+    "final_equiv",
+}
 PK = {t: fields[0] for t, _, fields in DATASETS}
 PK["class_meeting"] = "meeting_id"
 
@@ -147,9 +160,14 @@ class SchoolDataImportService:
     def _clean(self, table, row, fields):
         clean = {}
         for field in fields:
-            value = row.get(field)
-            if value is None or value == "":
+            if field not in row:
                 continue
+            value = row[field]
+            if value is None or value == "":
+                if field in NULLABLE:
+                    clean[field] = None
+                    continue
+                raise ValueError(f"{table}: {field} is required when supplied.")
             if field in NUMBERS:
                 value = number(value)
             elif field in INTEGERS:
@@ -168,38 +186,39 @@ class SchoolDataImportService:
 
     def _execute(self, c, datasets):
         base_source = source_reference()
-        if not datasets.get("_legacy_evidence"):
-            from app.services.scheduling import normalize_meetings, format_schedule
+        from app.services.scheduling import normalize_meetings, format_schedule
 
-            meetings = datasets.get("class_meeting", [])
-            for row in datasets.get("class", []):
+        meeting_groups = {}
+        for meeting in datasets.get("class_meeting", []):
+            meeting_groups.setdefault(meeting.get("class_id"), []).append(meeting)
+        normalized = {
+            cid: normalize_meetings(rows) for cid, rows in meeting_groups.items()
+        }
+        class_rows = []
+        for row in datasets.get("class", []):
+            selected = normalized.get(row.get("class_id"))
+            if not selected:
                 selected = [
-                    m for m in meetings if m.get("class_id") == row.get("class_id")
-                ]
-                if not selected:
-                    selected = [
-                        dict(weekday=d, start_time=a, end_time=b)
-                        for d, a, b in c.execute(
-                            "SELECT weekday,start_time,end_time FROM class_meeting WHERE class_id=%s",
-                            (row.get("class_id"),),
-                        )
-                    ]
-                if not selected:
-                    raise ValueError(
-                        f"Class {row.get('class_id')}: explicit weekdays and start/end times are required; review its schedule."
+                    dict(weekday=d, start_time=a, end_time=b)
+                    for d, a, b in c.execute(
+                        "SELECT weekday,start_time,end_time FROM class_meeting WHERE class_id=%s",
+                        (row.get("class_id"),),
                     )
-                row = dict(row, schedule=format_schedule(normalize_meetings(selected)))
-                # Detached normalized rows keep validation from mutating the caller's data.
-                datasets = dict(
-                    datasets,
-                    **{
-                        "class": [
-                            row if r.get("class_id") == row["class_id"] else r
-                            for r in datasets.get("class", [])
-                        ]
-                    },
+                ]
+            if selected:
+                row = dict(row, schedule=format_schedule(selected))
+            elif not datasets.get("_legacy_evidence"):
+                raise ValueError(
+                    f"Class {row.get('class_id')}: explicit weekdays and start/end times are required; review its schedule."
                 )
+            class_rows.append(row)
+        datasets = dict(datasets, **{"class": class_rows})
         for table, _, fields in DATASETS:
+            if table == "class_meeting":
+                # A provided class's meeting rows are its complete replacement set.
+                # Validation rolls these changes back; actual imports commit atomically.
+                for cid in normalized:
+                    c.execute("DELETE FROM class_meeting WHERE class_id=%s", (cid,))
             for row in datasets.get(table, []):
                 clean = self._clean(table, row, fields)
                 if not clean:
@@ -232,6 +251,13 @@ class SchoolDataImportService:
                     + conflict,
                     list(clean.values()),
                 )
+        # Also cover meeting-only imports: display and conflict data must agree.
+        c.execute("SELECT set_config('app.source',%s,true)", (base_source,))
+        for cid, meetings in normalized.items():
+            c.execute(
+                "UPDATE class SET schedule=%s WHERE class_id=%s",
+                (format_schedule(meetings), cid),
+            )
         c.execute("SET CONSTRAINTS ALL IMMEDIATE")
         if datasets.get("_legacy_evidence"):
             c.execute(
@@ -245,8 +271,17 @@ class SchoolDataImportService:
     def validate(self, datasets):
         try:
             for table, _, fields in DATASETS:
+                seen = set()
                 for row in datasets.get(table, []):
-                    self._clean(table, row, fields)
+                    clean = self._clean(table, row, fields)
+                    key = clean.get(PK[table])
+                    if key is not None:
+                        key = str(key)
+                        if key in seen:
+                            raise ValueError(
+                                f"{table}: duplicate {PK[table]} {key!r} in CSV input."
+                            )
+                        seen.add(key)
             with get_connection() as c:
                 with c.transaction(force_rollback=True):
                     self._execute(c, datasets)

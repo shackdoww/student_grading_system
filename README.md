@@ -29,7 +29,7 @@ provided. A graphical desktop/display is required for interactive use.
 
 ### Existing databases
 
-Back up the database before an upgrade. `--preflight` reports inventories and
+Close the application and back up the database before an upgrade. `--preflight` reports inventories and
 conversion blockers without changing records. `--all` converts a recognized
 legacy schema transactionally, preserves original domain/account/audit records
 in a uniquely named `legacy_rubric_*` archive schema, and keeps existing IDs.
@@ -99,7 +99,9 @@ Accounts/permissions and protected atomic batch deletion are documented in
 Canonical imports support the rubric-shaped columns, optional emails/year levels,
 structured class meetings, policies and consolidated grades. Import validation
 runs the actual PostgreSQL constraints inside a rolled-back transaction. A failed
-import leaves no saved rows or audit changes.
+import leaves no saved rows or audit changes. Duplicate input identifiers are
+rejected. Omitted fields stay unchanged; supplied blank optional fields become
+NULL. Provided meeting rows replace that class's complete meeting set atomically.
 
 The bundled `test_data` is explicitly a legacy-format example. It is converted
 using the same exact category-to-component rule as migration. Original legacy
