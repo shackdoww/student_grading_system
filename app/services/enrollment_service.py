@@ -16,10 +16,10 @@ class EnrollmentService:
             raise ValueError("Student not found.")
         return self.repository.find_by_student_id(student_id)
 
-    def get_by_offering(self, offering_id):
-        if not self.offering_repository.find_by_id(offering_id):
+    def get_by_offering(self, class_id):
+        if not self.offering_repository.find_by_id(class_id):
             raise ValueError("Class offering not found.")
-        return self.repository.find_by_offering_id(offering_id)
+        return self.repository.find_by_class_id(class_id)
 
     def get(self, enrollment_id):
         enrollment = self.repository.find_by_id(enrollment_id)
@@ -27,22 +27,22 @@ class EnrollmentService:
             raise ValueError("Enrollment not found.")
         return enrollment
 
-    def validate_membership(self, student_id, offering_id):
+    def validate_membership(self, student_id, class_id):
         if not self.student_repository.find_by_id(student_id):
             raise ValueError("Student not found.")
-        if not self.offering_repository.find_by_id(offering_id):
+        if not self.offering_repository.find_by_id(class_id):
             raise ValueError("Class offering not found.")
 
-    def enroll(self, student_id, offering_id, status='Enrolled', enroll_date=None):
+    def enroll(self, student_id, class_id, status='Enrolled', enroll_date=None):
         """Create-only enrollment; generated keys never overwrite another record."""
-        self.validate_membership(student_id, offering_id)
-        if self.repository.find_by_student_and_offering(student_id, offering_id):
+        self.validate_membership(student_id, class_id)
+        if self.repository.find_by_student_and_offering(student_id, class_id):
             raise ValueError('This student is already enrolled in this class offering.')
         enrollment_id = 'E-' + uuid4().hex
         try:
-            self.repository.create(enrollment_id, enroll_date or date.today(), status, student_id, offering_id)
+            self.repository.create(enrollment_id, enroll_date or date.today(), status, student_id, class_id)
         except UniqueViolation as error:
-            if error.diag.constraint_name == 'unique_student_offering':
+            if error.diag.constraint_name == 'unique_student_class':
                 raise ValueError('This student is already enrolled in this class offering.') from error
             raise
         return enrollment_id
@@ -53,11 +53,11 @@ class EnrollmentService:
         self.get(enrollment_id)
         self.repository.update_status(enrollment_id, status)
 
-    def save(self, enrollment_id, enroll_date, status, student_id, offering_id):
-        self.validate_membership(student_id, offering_id)
+    def save(self, enrollment_id, enroll_date, status, student_id, class_id):
+        self.validate_membership(student_id, class_id)
 
         existing_id = self.repository.find_by_student_and_offering(
-            student_id, offering_id
+            student_id, class_id
         )
         if existing_id and existing_id != enrollment_id:
             raise ValueError(
@@ -65,7 +65,7 @@ class EnrollmentService:
             )
 
         self.repository.save(
-            enrollment_id, enroll_date, status, student_id, offering_id
+            enrollment_id, enroll_date, status, student_id, class_id
         )
 
     def delete(self, enrollment_id):

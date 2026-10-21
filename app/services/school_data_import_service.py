@@ -1,295 +1,264 @@
+"""Canonical CSV import with atomic validation and explicit legacy conversion."""
+
 import csv
-import os
-from datetime import date
-from decimal import Decimal, InvalidOperation
-
+import json
+from pathlib import Path
+from datetime import date, time
+from decimal import Decimal
+from psycopg import sql
+from psycopg.types.json import Jsonb
 from app.database.connection import get_connection
+from app.database.provenance import source_reference
+from app.database.migration_preflight import component_weights
+from app.calculator.period_calculator import number
 
-
+# Optional fields may be absent. Relationships, required text and totals are also
+# checked by the same PostgreSQL constraints as normal application writes.
 DATASETS = [
-    ("students", "school_students.csv", ["student_id", "first_name", "last_name", "email", "program", "status"]),
-    ("teachers", "school_teachers.csv", ["teacher_id", "first_name", "last_name", "email", "department", "status"]),
-    ("subjects", "school_subjects.csv", ["subject_id", "subject_code", "subject_name", "description", "units"]),
-    ("grading_periods", "school_grading_periods.csv", ["period_id", "name", "start_date", "end_date", "school_year", "semester"]),
-    ("class_offerings", "school_class_offerings.csv", ["offering_id", "class_code", "schedule", "section", "school_year", "semester", "room", "teacher_id", "subject_id"]),
-    ("grade_percentages", "school_grade_percentages.csv", ["percentage_id", "percentage", "offering_id"]),
-    ("grade_components", "school_grade_components.csv", ["component_id", "name", "type", "max_score", "description", "period_id", "percentage_id"]),
-    ("enrollments", "school_enrollments.csv", ["enrollment_id", "enroll_date", "status", "student_id", "offering_id"]),
-    ("grade_component_scores", "school_grade_component_scores.csv", ["score_id", "score", "remarks", "date_recorded", "enrollment_id", "component_id"]),
-    ("grades", "school_grades.csv", ["grade_id", "final_grade", "remarks", "date_encoded", "enrollment_id"]),
+    (
+        "student",
+        "school_students.csv",
+        "student_id first_name last_name email program status year_level",
+    ),
+    (
+        "teacher",
+        "school_teachers.csv",
+        "teacher_id first_name last_name email department status",
+    ),
+    (
+        "subject",
+        "school_subjects.csv",
+        "subject_id subject_code subject_name description units",
+    ),
+    (
+        "grading_period",
+        "school_grading_periods.csv",
+        "period_id name start_date end_date school_year semester period_order",
+    ),
+    (
+        "class",
+        "school_class_offerings.csv",
+        "class_id class_code subject_id teacher_id section school_year semester schedule room",
+    ),
+    (
+        "class_meeting",
+        "school_class_meetings.csv",
+        "meeting_id class_id weekday start_time end_time",
+    ),
+    (
+        "grade_component",
+        "school_grade_components.csv",
+        "component_id period_id name type max_score description",
+    ),
+    (
+        "grade_percentage",
+        "school_grade_percentages.csv",
+        "percentage_id class_id component_id percentage",
+    ),
+    (
+        "grading_policy",
+        "school_grading_policies.csv",
+        "class_id midterm_period_id final_period_id midterm_weight final_weight",
+    ),
+    (
+        "enrollment",
+        "school_enrollments.csv",
+        "enrollment_id student_id class_id enroll_date status",
+    ),
+    (
+        "grade_component_score",
+        "school_grade_component_scores.csv",
+        "score_id enrollment_id component_id score remarks date_recorded",
+    ),
+    (
+        "grade",
+        "school_grades.csv",
+        "grade_id enrollment_id midterm_grade finals_grade overall_grade midterm_equiv finals_equiv final_equiv remarks date_encoded",
+    ),
 ]
-
-UPSERTS = {
-    "students": ("student_id", ["first_name", "last_name", "email", "program", "status"]),
-    "teachers": ("teacher_id", ["first_name", "last_name", "email", "department", "status"]),
-    "subjects": ("subject_id", ["subject_code", "subject_name", "description", "units"]),
-    "grading_periods": ("period_id", ["name", "start_date", "end_date", "school_year", "semester"]),
-    "class_offerings": ("offering_id", ["class_code", "schedule", "section", "school_year", "semester", "room", "teacher_id", "subject_id"]),
-    "grade_percentages": ("percentage_id", ["percentage", "offering_id"]),
-    "grade_components": ("component_id", ["name", "type", "max_score", "description", "period_id", "percentage_id"]),
-    "enrollments": ("enrollment_id", ["enroll_date", "status", "student_id", "offering_id"]),
-    "grade_component_scores": ("score_id", ["score", "remarks", "date_recorded", "enrollment_id", "component_id"]),
-    "grades": ("grade_id", ["final_grade", "remarks", "date_encoded", "enrollment_id"]),
+DATASETS = [(t, f, fields.split()) for t, f, fields in DATASETS]
+NUMBERS = {
+    "max_score",
+    "score",
+    "percentage",
+    "midterm_weight",
+    "final_weight",
+    "midterm_grade",
+    "finals_grade",
+    "overall_grade",
+    "midterm_equiv",
+    "finals_equiv",
+    "final_equiv",
 }
+INTEGERS = {"units", "year_level", "period_order", "weekday"}
+PK = {t: fields[0] for t, _, fields in DATASETS}
+PK["class_meeting"] = "meeting_id"
 
 
 class SchoolDataImportService:
     def read_folder(self, folder):
+        folder = Path(folder)
         datasets = {}
-        errors = []
-
-        for table, filename, required in DATASETS:
-            path = os.path.join(folder, filename)
-            if not os.path.isfile(path):
-                errors.append(f"{filename}: file not found.")
-                continue
-
-            try:
-                with open(path, "r", encoding="utf-8-sig", newline="") as file:
-                    reader = csv.DictReader(file)
-                    headers = [h.strip() if h else "" for h in (reader.fieldnames or [])]
-                    missing = [h for h in required if h not in headers]
-                    if missing:
-                        errors.append(f"{filename}: missing column(s): {', '.join(missing)}.")
-                        continue
-
-                    rows = []
-                    for line, raw in enumerate(reader, start=2):
-                        row = {key: (raw.get(key) or "").strip() for key in required}
-                        row["_line"] = line
-                        rows.append(row)
-                    datasets[table] = rows
-            except UnicodeDecodeError:
-                errors.append(f"{filename}: save the CSV as UTF-8.")
-            except csv.Error as error:
-                errors.append(f"{filename}: {error}")
-
-        if errors:
-            raise ValueError("\n".join(errors))
+        for table, filename, fields in DATASETS:
+            path = folder / filename
+            if not path.is_file():
+                if table in ("class_meeting", "grading_policy"):
+                    datasets[table] = []
+                    continue
+                raise ValueError(f"{filename}: file not found.")
+            with path.open(encoding="utf-8-sig", newline="") as file:
+                reader = csv.DictReader(file)
+                if not reader.fieldnames:
+                    raise ValueError(f"{filename}: header is required.")
+                datasets[table] = [
+                    dict({k: (v or "").strip() for k, v in row.items() if k}, _line=i)
+                    for i, row in enumerate(reader, 2)
+                ]
+        if any("percentage_id" in r for r in datasets["grade_component"]):
+            return self._legacy(datasets)
         return datasets
 
-    def validate(self, datasets):
-        errors = []
-
-        def required(table, fields):
-            for row in datasets[table]:
-                missing = [f for f in fields if not row[f]]
-                if missing:
-                    errors.append(f"{table} row {row['_line']}: missing {', '.join(missing)}.")
-
-        for table, _, fields in DATASETS:
-            required(table, fields)
-
-        self._unique(errors, datasets["students"], "student_id", "students")
-        self._unique(errors, datasets["students"], "email", "students")
-        self._unique(errors, datasets["teachers"], "teacher_id", "teachers")
-        self._unique(errors, datasets["teachers"], "email", "teachers")
-        self._unique(errors, datasets["subjects"], "subject_id", "subjects")
-        self._unique(errors, datasets["subjects"], "subject_code", "subjects")
-        self._unique(errors, datasets["grading_periods"], "period_id", "grading_periods")
-        self._unique(errors, datasets["class_offerings"], "offering_id", "class_offerings")
-        self._unique(errors, datasets["grade_percentages"], "percentage_id", "grade_percentages")
-        self._unique(errors, datasets["grade_components"], "component_id", "grade_components")
-        self._unique(errors, datasets["enrollments"], "enrollment_id", "enrollments")
-        self._unique(errors, datasets["grade_component_scores"], "score_id", "grade_component_scores")
-        self._unique(errors, datasets["grades"], "grade_id", "grades")
-
-        self._numbers(errors, datasets)
-        self._dates(errors, datasets)
-        self._foreign_keys(errors, datasets)
-
-        percentage_by_offering = {}
-        for row in datasets["grade_percentages"]:
-            try:
-                percentage_by_offering.setdefault(row["offering_id"], Decimal(row["percentage"]))
-            except InvalidOperation:
-                continue
-        for offering_id in list(percentage_by_offering):
-            percentage_by_offering[offering_id] = sum(
-                Decimal(r["percentage"]) for r in datasets["grade_percentages"]
-                if r["offering_id"] == offering_id
-                and self._is_decimal(r["percentage"])
-            )
-        for offering_id, total in percentage_by_offering.items():
-            if total > Decimal("100"):
-                errors.append(f"grade_percentages: offering {offering_id} totals {total}%, above 100%.")
-
-        pct_ids = {r["percentage_id"] for r in datasets["grade_percentages"]}
-        period_ids = {r["period_id"] for r in datasets["grading_periods"]}
-        component_limits = {}
-        for row in datasets["grade_components"]:
-            if self._is_decimal(row["max_score"]):
-                component_limits[row["component_id"]] = Decimal(row["max_score"])
-            if row["percentage_id"] not in pct_ids:
-                errors.append(f"grade_components row {row['_line']}: unknown percentage_id '{row['percentage_id']}'.")
-            if row["period_id"] not in period_ids:
-                errors.append(f"grade_components row {row['_line']}: unknown period_id '{row['period_id']}'.")
-
-        for row in datasets["grade_component_scores"]:
-            if self._is_decimal(row["score"]) and row["component_id"] in component_limits:
-                score = Decimal(row["score"])
-                if score < 0 or score > component_limits[row["component_id"]]:
-                    errors.append(
-                        f"grade_component_scores row {row['_line']}: score {score} exceeds "
-                        f"component {row['component_id']} maximum {component_limits[row['component_id']]}."
-                    )
-
-        self._unique_pair(errors, datasets["enrollments"], "student_id", "offering_id", "enrollments")
-        self._unique_pair(errors, datasets["grade_component_scores"], "enrollment_id", "component_id", "grade_component_scores")
-        self._unique(errors, datasets["grades"], "enrollment_id", "grades")
-
-        if errors:
-            return errors
-
-        # Check database-level unique conflicts that an upsert cannot safely resolve.
-        connection = get_connection()
-        try:
-            with connection.cursor() as cursor:
-                for table, field in [("students", "email"), ("teachers", "email"), ("subjects", "subject_code")]:
-                    values = [r[field] for r in datasets[table]]
-                    if not values:
-                        continue
-                    cursor.execute(f"SELECT {field}, {self._pk(table)} FROM {table} WHERE {field} = ANY(%s)", (values,))
-                    existing = cursor.fetchall()
-                    for unique_value, existing_pk in existing:
-                        row = next((r for r in datasets[table] if r[field] == unique_value), None)
-                        if row and row[self._pk(table)] != existing_pk:
-                            errors.append(
-                                f"{table}: {field} '{unique_value}' already belongs to '{existing_pk}', "
-                                f"but the CSV uses '{row[self._pk(table)]}'."
-                            )
-        finally:
-            connection.close()
-
-        return errors
-
-    @staticmethod
-    def _pk(table):
-        return next(pk for t, _, _ in DATASETS if t == table for pk in [UPSERTS[t][0]])
-
-    @staticmethod
-    def _pk_index(table):
-        return 0
-
-    @staticmethod
-    def _unique(errors, rows, field, table):
-        seen = set()
-        for row in rows:
-            value = row[field]
-            if value in seen:
-                errors.append(f"{table} row {row['_line']}: duplicate {field} '{value}'.")
-            seen.add(value)
-
-    @staticmethod
-    def _unique_pair(errors, rows, first, second, table):
-        seen = set()
-        for row in rows:
-            pair = (row[first], row[second])
-            if pair in seen:
-                errors.append(f"{table} row {row['_line']}: duplicate ({first}, {second}) pair.")
-            seen.add(pair)
-
-    @staticmethod
-    def _is_decimal(value):
-        try:
-            Decimal(value)
-            return True
-        except (InvalidOperation, ValueError):
-            return False
-
-    def _numbers(self, errors, datasets):
-        for row in datasets["subjects"]:
-            try:
-                if int(row["units"]) <= 0:
-                    errors.append(f"subjects row {row['_line']}: units must be greater than 0.")
-            except ValueError:
-                errors.append(f"subjects row {row['_line']}: units must be an integer.")
-        for row in datasets["grade_percentages"]:
-            try:
-                value = Decimal(row["percentage"])
-                if value <= 0 or value > 100:
-                    errors.append(f"grade_percentages row {row['_line']}: percentage must be > 0 and <= 100.")
-            except InvalidOperation:
-                errors.append(f"grade_percentages row {row['_line']}: invalid percentage.")
-        for row in datasets["grade_components"]:
-            try:
-                if Decimal(row["max_score"]) <= 0:
-                    errors.append(f"grade_components row {row['_line']}: max_score must be > 0.")
-            except InvalidOperation:
-                errors.append(f"grade_components row {row['_line']}: invalid max_score.")
-        for row in datasets["grade_component_scores"]:
-            if not self._is_decimal(row["score"]) or Decimal(row["score"]) < 0:
-                errors.append(f"grade_component_scores row {row['_line']}: score must be numeric and >= 0.")
-        for row in datasets["grades"]:
-            try:
-                value = Decimal(row["final_grade"])
-                if value < 0 or value > 100:
-                    errors.append(f"grades row {row['_line']}: final_grade must be between 0 and 100.")
-            except InvalidOperation:
-                errors.append(f"grades row {row['_line']}: invalid final_grade.")
-
-    def _dates(self, errors, datasets):
-        for table, field in [
-            ("grading_periods", "start_date"), ("grading_periods", "end_date"),
-            ("enrollments", "enroll_date"), ("grade_component_scores", "date_recorded"),
-            ("grades", "date_encoded")
-        ]:
-            for row in datasets[table]:
-                try:
-                    date.fromisoformat(row[field])
-                except ValueError:
-                    errors.append(f"{table} row {row['_line']}: invalid {field}.")
-
-        for row in datasets["grading_periods"]:
-            if self._valid_date(row["start_date"]) and self._valid_date(row["end_date"]) and row["end_date"] < row["start_date"]:
-                errors.append(f"grading_periods row {row['_line']}: end_date is before start_date.")
-
-    @staticmethod
-    def _valid_date(value):
-        try:
-            date.fromisoformat(value)
-            return True
-        except ValueError:
-            return False
-
-    def _foreign_keys(self, errors, d):
-        checks = [
-            ("class_offerings", "teacher_id", "teachers", "teacher_id"),
-            ("class_offerings", "subject_id", "subjects", "subject_id"),
-            ("grade_percentages", "offering_id", "class_offerings", "offering_id"),
-            ("grade_components", "period_id", "grading_periods", "period_id"),
-            ("grade_components", "percentage_id", "grade_percentages", "percentage_id"),
-            ("enrollments", "student_id", "students", "student_id"),
-            ("enrollments", "offering_id", "class_offerings", "offering_id"),
-            ("grade_component_scores", "enrollment_id", "enrollments", "enrollment_id"),
-            ("grade_component_scores", "component_id", "grade_components", "component_id"),
-            ("grades", "enrollment_id", "enrollments", "enrollment_id"),
+    def _legacy(self, datasets):
+        original = json.loads(json.dumps(datasets))
+        categories = [
+            dict(r, offering_id=r.get("offering_id", r.get("class_id")))
+            for r in datasets["grade_percentage"]
         ]
-        for table, field, parent, parent_field in checks:
-            parent_values = {r[parent_field] for r in d[parent]}
-            for row in d[table]:
-                if row[field] not in parent_values:
-                    errors.append(f"{table} row {row['_line']}: unknown {field} '{row[field]}'.")
+        weights, blockers = component_weights(
+            {
+                "grade_components": datasets["grade_component"],
+                "grade_percentages": categories,
+            }
+        )
+        if blockers:
+            raise ValueError(" ".join(blockers))
+        for table in ("class", "enrollment"):
+            for row in datasets[table]:
+                row["class_id"] = row.pop("offering_id", row.get("class_id"))
+        for row in datasets["grade_component"]:
+            row.pop("percentage_id", None)
+        datasets["grade_percentage"] = weights
+        for i, row in enumerate(datasets["grading_period"], 1):
+            row["period_order"] = i
+        datasets["grade"] = []
+        datasets["_legacy_evidence"] = original
+        return datasets
+
+    def _clean(self, table, row, fields):
+        clean = {}
+        for field in fields:
+            value = row.get(field)
+            if value is None or value == "":
+                continue
+            if field in NUMBERS:
+                value = number(value)
+            elif field in INTEGERS:
+                try:
+                    value = int(value)
+                except (ValueError, TypeError) as error:
+                    raise ValueError(f"{field} must be an integer.") from error
+            elif field.endswith("_date") or field in ("date_recorded", "date_encoded"):
+                if not isinstance(value, date):
+                    value = date.fromisoformat(str(value))
+            elif field.endswith("_time"):
+                if not isinstance(value, time):
+                    value = time.fromisoformat(str(value))
+            clean[field] = value
+        return clean
+
+    def _execute(self, c, datasets):
+        base_source = source_reference()
+        if not datasets.get("_legacy_evidence"):
+            from app.services.scheduling import normalize_meetings, format_schedule
+
+            meetings = datasets.get("class_meeting", [])
+            for row in datasets.get("class", []):
+                selected = [
+                    m for m in meetings if m.get("class_id") == row.get("class_id")
+                ]
+                if not selected:
+                    selected = [
+                        dict(weekday=d, start_time=a, end_time=b)
+                        for d, a, b in c.execute(
+                            "SELECT weekday,start_time,end_time FROM class_meeting WHERE class_id=%s",
+                            (row.get("class_id"),),
+                        )
+                    ]
+                if not selected:
+                    raise ValueError(
+                        f"Class {row.get('class_id')}: explicit weekdays and start/end times are required; review its schedule."
+                    )
+                row = dict(row, schedule=format_schedule(normalize_meetings(selected)))
+                # Detached normalized rows keep validation from mutating the caller's data.
+                datasets = dict(
+                    datasets,
+                    **{
+                        "class": [
+                            row if r.get("class_id") == row["class_id"] else r
+                            for r in datasets.get("class", [])
+                        ]
+                    },
+                )
+        for table, _, fields in DATASETS:
+            for row in datasets.get(table, []):
+                clean = self._clean(table, row, fields)
+                if not clean:
+                    raise ValueError(f"{table}: empty row.")
+                c.execute(
+                    "SELECT set_config('app.source',%s,true)",
+                    (row.get("source_reference") or row.get("set_by") or base_source,),
+                )
+                columns = list(clean)
+                pk = PK[table]
+                updates = [k for k in columns if k != pk]
+                conflict = (
+                    sql.SQL(" DO NOTHING")
+                    if not updates
+                    else sql.SQL(" DO UPDATE SET ")
+                    + sql.SQL(",").join(
+                        sql.SQL("{}=EXCLUDED.{}").format(
+                            sql.Identifier(k), sql.Identifier(k)
+                        )
+                        for k in updates
+                    )
+                )
+                c.execute(
+                    sql.SQL("INSERT INTO {} ({}) VALUES ({}) ON CONFLICT ({})").format(
+                        sql.Identifier(table),
+                        sql.SQL(",").join(map(sql.Identifier, columns)),
+                        sql.SQL(",").join(sql.Placeholder() for _ in columns),
+                        sql.Identifier(pk),
+                    )
+                    + conflict,
+                    list(clean.values()),
+                )
+        c.execute("SET CONSTRAINTS ALL IMMEDIATE")
+        if datasets.get("_legacy_evidence"):
+            c.execute(
+                "INSERT INTO import_archive(payload,imported_by) VALUES (%s,%s)",
+                (
+                    Jsonb(datasets["_legacy_evidence"]),
+                    c.execute("SELECT current_setting('app.actor',true)").fetchone()[0],
+                ),
+            )
+
+    def validate(self, datasets):
+        try:
+            for table, _, fields in DATASETS:
+                for row in datasets.get(table, []):
+                    self._clean(table, row, fields)
+            with get_connection() as c:
+                with c.transaction(force_rollback=True):
+                    self._execute(c, datasets)
+        except Exception as error:
+            # psycopg errors carry database messages; expose no credentials.
+            return [str(error).split("\nCONTEXT:")[0]]
+        return []
 
     def import_all(self, datasets):
-        connection = get_connection()
-        try:
-            with connection.cursor() as cursor:
-                for table, _, fields in DATASETS:
-                    pk, updates = UPSERTS[table]
-                    columns = fields
-                    placeholders = ", ".join(["%s"] * len(columns))
-                    assignments = ", ".join(f"{field} = EXCLUDED.{field}" for field in updates)
-                    sql = (
-                        f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders}) "
-                        f"ON CONFLICT ({pk}) DO UPDATE SET {assignments}"
-                    )
-                    for row in datasets[table]:
-                        values = [row[field] for field in columns]
-                        cursor.execute(sql, values)
-            connection.commit()
-        except Exception:
-            connection.rollback()
-            raise
-        finally:
-            connection.close()
+        errors = self.validate(datasets)
+        if errors:
+            raise ValueError("\n".join(errors))
+        with get_connection() as c:
+            self._execute(c, datasets)
+        return sum(len(datasets.get(t, [])) for t, _, _ in DATASETS)

@@ -1,267 +1,565 @@
-"""Opt-in real PostgreSQL acceptance checks; never use the application's schema."""
+"""All 52 rubric cases, real services/SQL, exact appendix comparison and restart."""
+
 import importlib
+import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 from datetime import date
-from pathlib import Path
-from uuid import uuid4
-
 import psycopg
 import pytest
-from psycopg import sql
-
+from PySide6.QtWidgets import QApplication
+from PySide6.QtTest import QTest
+from tests.database_helpers import isolated_database
+from tests.rubric_comparison import compare
+from app.services.student_service import StudentService
 from app.services.academic_service import AcademicService
 from app.services.enrollment_service import EnrollmentService
-from app.services.period_grading_service import PeriodGradingService
 from app.services.score_service import ScoreService
-from app.services.student_service import StudentService
+from app.services.period_grading_service import PeriodGradingService
+from app.services.account_service import AccountService
+from app.services.access_control import AccessGuard, SecuredService
+from app.services.record_deletion_service import RecordDeletionService
 from app.gui.data_snapshot import load_snapshot
 from app.gui.checklist_reports import class_report, student_report
 
 
 @pytest.fixture
 def school(monkeypatch):
-    dsn = os.getenv('CHECKLIST_TEST_DSN')
-    if not dsn:
-        pytest.skip('Set CHECKLIST_TEST_DSN to run isolated PostgreSQL acceptance checks.')
-    schema = 'test_checklist_' + uuid4().hex
-    with psycopg.connect(dsn) as conn:
-        conn.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
-    def connect():
-        conn = psycopg.connect(dsn)
-        conn.execute(sql.SQL('SET search_path TO {}').format(sql.Identifier(schema)))
-        from app.database.connection import _actor
-        actor=_actor.get()
-        conn.execute("SELECT set_config('app.actor', %s, false)", ('checklist-tester' if actor=='system' else actor,))
-        conn.commit()
-        return conn
-    connect.schema_name=schema
-    root = Path(__file__).resolve().parents[1]
-    try:
-        with connect() as conn:
-            conn.execute((root/'app/database/schema.sql').read_text())
-            for migration in sorted((root/'app/database').glob('migration_*.sql')):
-                conn.execute(migration.read_text())
-            for migration in sorted((root/'app/database').glob('migration_*.sql')):
-                conn.execute(migration.read_text())
-        for path in (root/'app/repositories').glob('*.py'):
-            module = importlib.import_module('app.repositories.'+path.stem)
-            if hasattr(module, 'get_connection'):
-                monkeypatch.setattr(module, 'get_connection', connect)
-        monkeypatch.setattr('app.gui.data_snapshot.get_connection', connect)
+    with isolated_database() as connect:
+        for folder in ("repositories", "services"):
+            for path in (Path(__file__).parents[1] / "app" / folder).glob("*.py"):
+                module = importlib.import_module("app." + folder + "." + path.stem)
+                if hasattr(module, "get_connection"):
+                    monkeypatch.setattr(module, "get_connection", connect)
+        monkeypatch.setattr("app.gui.data_snapshot.get_connection", connect)
         yield connect
-    finally:
-        with psycopg.connect(dsn) as conn:
-            conn.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))
 
 
-def test_checklist_create_validate_recompute_report_and_persist(school):
-    connect = school
-    students, academic = StudentService(), AcademicService()
-    enrollment, scores = EnrollmentService(), ScoreService()
-    periods = PeriodGradingService(connection_factory=connect)
-    from app.services.account_service import AccountService
-    from app.services.access_control import AccessGuard, SecuredService
-    from app.services.record_deletion_service import RecordDeletionService
-    auth=AccountService(connect)
-    password='A disposable checklist passphrase'
-    auth.create_account('checklistadmin','Checklist Tester',password,'admin',first_admin=True)
-    token=auth.authenticate('checklistadmin',password)
-    guard=AccessGuard(auth,token)
-    deletion=RecordDeletionService(guard)
-    for sid, first, last, program in [('2026-0001','Juan','Dela Cruz','BSCS'),
-                                     ('2026-0002','Pedro','Reyes','BSCS'),
-                                     ('2026-0003','Ana','Garcia','BSIT')]:
-        students.create(sid,first,last,'',program,'Active',2)
-    with pytest.raises(ValueError, match='already exists'):
-        students.create('2026-0001','Other','Name','','BSIT','Active',1)
-    with pytest.raises(ValueError):
-        students.create('','Missing','Number','','BSCS','Active',2)
-    students.save('2026-0003','Ana','Garcia','','BSCS','Active',2)
-    students.create('2026-0099','Lea','Ramos','','BSIT','Active',1)
-    deletion.delete('students','2026-0099')
-    assert students.repository.find_by_id('2026-0099') is None
-    with pytest.raises(ValueError):
-        academic.save_teacher('BAD','','Name','','Department','Active')
-    academic.save_teacher('T-1001','Maria','Santos','','Computer Studies Department','Active')
-    academic.save_teacher('T-1001','Maria','Santos','','Information Technology Department','Active')
-    academic.save_subject('SUB','CSPC 103','Object Oriented Programming','',3)
-    academic.save_subject('SUB','CSPC 103','Object Oriented Programming','Object-oriented analysis, design and programming in Java',3)
-    academic.save_subject('TEMP','TEMP','Temporary','',1)
-    academic.delete_unreferenced('subjects','TEMP')
-    with pytest.raises(psycopg.errors.UniqueViolation):
-        academic.save_subject('DUP','CSPC 103','Duplicate','',3)
-    with pytest.raises(ValueError):
-        academic.save_subject('BAD','BAD','Bad','',0)
-    academic.save_offering('O','CSPC103-A','MWF 9:00–10:00','A','2026-2027','1st','CS-201','T-1001','SUB')
-    academic.save_offering('O','CSPC103-A','TTh 1:00–2:30','A','2026-2027','1st','CS-202','T-1001','SUB')
-    with pytest.raises(ValueError,match='CSPC103-A'):
-        academic.delete_unreferenced('teachers','T-1001')
-    with pytest.raises(ValueError):
-        academic.delete_unreferenced('subjects','SUB')
-    for teacher,subject,year,semester in [('', 'SUB','2026-2027','1st'),('T-1001','','2026-2027','1st'),('T-1001','SUB','','1st'),('T-1001','SUB','2026-2027','')]:
-        with pytest.raises(ValueError):
-            academic.save_offering('BAD','BAD','Monday','A',year,semester,'',teacher,subject)
-    ids = [enrollment.enroll(sid,'O','Enrolled') for sid in ['2026-0001','2026-0002','2026-0003']]
-    with pytest.raises(ValueError, match='already enrolled'):
-        enrollment.enroll('2026-0001','O','Enrolled')
-    with pytest.raises(ValueError):
-        enrollment.enroll('2026-9999','O','Enrolled')
-    enrollment.update_status(ids[1], 'Dropped')
-    enrollment.update_status(ids[1], 'Enrolled')
-    with pytest.raises(ValueError):
-        deletion.delete('students','2026-0001')
-    with pytest.raises(ValueError):
-        academic.delete_unreferenced('class_offerings','O')
-    students.create('2026-0098','Carlo','Mendoza','','BSIT','Active',1)
-    temporary=enrollment.enroll('2026-0098','O','Enrolled')
-    deletion.delete('enrollments',temporary)
-    for pid, order in [('M',1),('F',2)]:
-        academic.save_period(pid,'Midterm' if pid=='M' else 'Finals',date(2026,1,1),date(2026,12,31),'2026-2027','1st',order)
-    policy = dict(offering_id='O',midterm_period_id='M',final_period_id='F',midterm_weight=40,final_weight=60)
-    def configure(oid, prefix):
-        for category, weight in [('Q',20),('L',30),('E',50)]:
-            academic.save_percentage(prefix+category,weight,oid)
-            for pid in ['M','F']:
-                academic.save_component(prefix+pid+category,pid+category,category,50 if category=='Q' else 100,'',pid,prefix+category)
-        weights = [dict(period_id=p,percentage_id=prefix+c,weight=w) for p in ['M','F'] for c,w in [('Q',20),('L',30),('E',50)]]
-        periods.save_policy(dict(policy,offering_id=oid), weights)
-        return weights
-    weights = configure('O','')
-    invalid = [dict(w) for w in weights]
-    invalid[2]['weight'] = 40
-    with pytest.raises(ValueError):
-        periods.save_policy(policy, invalid)
-    for bad in [-5,'']:
-        invalid=[dict(w) for w in weights]
-        invalid[0]['weight']=bad
-        with pytest.raises(ValueError):
-            periods.save_policy(policy,invalid)
-    with connect() as conn:
-        assert conn.execute("SELECT weight FROM period_category_weights WHERE period_id='M' ORDER BY percentage_id").fetchall() == [(50,),(30,),(20,)]
-    data = [[40,90,57,45,85,80],[20,60,55,30,70,65],[50,100,100,48,95,92]]
-    components = ['MQ','ML','ME','FQ','FL','FE']
-    for eid, values in zip(ids,data):
-        for cid, value in zip(components,values):
-            scores.record_score('SC-'+uuid4().hex,eid,cid,value)
-    for value in [-5,55,float('nan')]:
-        with pytest.raises(ValueError):
-            scores.record_score('SC-'+uuid4().hex,ids[0],'MQ',value)
-    with pytest.raises(ValueError):
-        scores.record_score('removed-enrollment',temporary,'MQ',20)
-    with pytest.raises(ValueError):
-        deletion.delete('enrollments',ids[0])
-    with pytest.raises(ValueError):
-        academic.delete_unreferenced('grade_components','MQ')
-    SecuredService(scores,guard).record_score('correction',ids[0],'ME',75)
-    for eid, want in zip(ids,[82.3,60.7,96.22]):
-        assert periods.calculate_and_save(eid)['overall'] == want
-    with connect() as conn:
-        assert conn.execute('SELECT count(*) FROM grade_component_scores').fetchone()[0] == 18
-        ana_score = conn.execute("SELECT score_id FROM grade_component_scores WHERE enrollment_id=%s AND component_id='FQ'",(ids[2],)).fetchone()[0]
-    scores.delete_score(ana_score)
-    missing=class_report(load_snapshot(),'O',grade_sheet=True)
-    assert missing['rows'][1][-1] == 'Incomplete'
-    with pytest.raises(ValueError, match='Missing score'):
-        periods.calculate_and_save(ids[2])
-    scores.record_score('ana-quiz-reentry',ids[2],'FQ',48)
-    for row,value in zip(weights[:3],[30,30,40]):
-        row['weight'] = value
-    periods.save_policy(policy,weights)
-    outdated=class_report(load_snapshot(),'O',grade_sheet=True)
-    assert outdated['rows'][0][-1] == 'Recompute required'
-    for eid,want in zip(ids,[82.5,60.1,96.22]):
-        assert periods.calculate_and_save(eid)['overall'] == want
-    academic.save_teacher('T-1002','Jose','Ramos','','Physical Education Department','Active')
-    academic.save_subject('PATH','PATHFIT 3','Physical Activity Towards Health and Fitness 3','',2)
-    academic.save_offering('O2','PATHFIT3-A','TTh 3:00–5:00','A','2026-2027','1st','Gym','T-1002','PATH')
-    configure('O2','P')
-    pe = enrollment.enroll('2026-0001','O2','Enrolled')
-    for cid,value in zip(components,[45,90,90,45,90,90]):
-        scores.record_score('P'+cid,pe,'P'+cid,value)
-    periods.calculate_and_save(pe)
+def test_checklist_create_validate_recompute_report_and_persist(school, monkeypatch):
+    auth = AccountService(school)
+    auth.create_account(
+        "tester",
+        "Rubric Tester",
+        "Testing Student Hub 2026!",
+        "admin",
+        first_admin=True,
+    )
+    token = auth.authenticate("tester", "Testing Student Hub 2026!")
+    guard = AccessGuard(auth, token)
+    students = SecuredService(StudentService(), guard)
+    academic = SecuredService(AcademicService(), guard)
+    enrollment = SecuredService(EnrollmentService(), guard)
+    scores = SecuredService(ScoreService(), guard)
+    periods = SecuredService(PeriodGradingService(connection_factory=school), guard)
+    deletion = RecordDeletionService(guard)
+    done = set()
+
+    def mark(case):
+        assert case not in done
+        done.add(case)
+
+    def reject(operation):
+        with school() as c:
+            before = {
+                t: c.execute("SELECT count(*) FROM " + t).fetchone()[0]
+                for t in (
+                    "student",
+                    "teacher",
+                    "subject",
+                    "class",
+                    "enrollment",
+                    "grade_component",
+                    "grade_percentage",
+                    "grade_component_score",
+                    "grade",
+                    "audit_log",
+                )
+            }
+        with pytest.raises((ValueError, PermissionError, psycopg.Error)):
+            operation()
+        with school() as c:
+            assert before == {
+                t: c.execute("SELECT count(*) FROM " + t).fetchone()[0] for t in before
+            }
+
+    def student(sid, first, last, program="BSCS", year=2, source="ST-01"):
+        students.create(
+            sid, first, last, "", program, "Active", year, source_reference=source
+        )
+
+    def meetings(days, start, end):
+        return [dict(weekday=d, start_time=start, end_time=end) for d in days]
+
+    def save_class(
+        cid,
+        source="CL-01",
+        schedule=None,
+        room="CS-201",
+        teacher="T-1001",
+        subject="SUB-CS",
+    ):
+        academic.save_offering(
+            cid,
+            cid,
+            schedule or meetings((1, 3, 5), "09:00", "10:00"),
+            "A",
+            "2026-2027",
+            "1st",
+            room,
+            teacher,
+            subject,
+            source_reference=source,
+        )
+
+    def policy(cid):
+        return dict(
+            class_id=cid,
+            midterm_period_id="M",
+            final_period_id="F",
+            midterm_weight=40,
+            final_weight=60,
+        )
+
+    cids = ["MQ", "ML", "ME", "FQ", "FL", "FE"]
+
+    def weights(mid=(20, 30, 50)):
+        return [
+            dict(component_id=cid, percentage=w)
+            for cid, w in zip(cids, [*mid, 20, 30, 50])
+        ]
+
+    ids = ["2026-0001", "2026-0002", "2026-0003"]
+
+    for sid, first, last, program in zip(
+        ids,
+        ["Juan", "Pedro", "Ana"],
+        ["Dela Cruz", "Reyes", "Garcia"],
+        ["BSCS", "BSCS", "BSIT"],
+    ):
+        student(sid, first, last, program)
+    mark("ST-01")
+    reject(lambda: student(ids[0], "Other", "Person"))
+    mark("ST-02")
+    reject(lambda: student("", "Blank", "Student"))
+    reject(lambda: student("BLANK", "", "Student"))
+    mark("ST-03")
+    assert StudentService().get(ids[1])[2] == "Reyes"
+    mark("ST-04")
+    students.save(
+        ids[2], "Ana", "Garcia", "", "BSCS", "Active", 2, source_reference="ST-05"
+    )
+    mark("ST-05")
+    student("2026-0099", "Lea", "Ramos", "BSIT", 1, "ST-06")
+    deletion.delete("student", "2026-0099", source_reference="ST-06")
+    mark("ST-06")
+    academic.create_teacher(
+        "T-1001",
+        "Maria",
+        "Santos",
+        "",
+        "Computer Studies Department",
+        "Active",
+        source_reference="TE-01",
+    )
+    mark("TE-01")
+    reject(
+        lambda: academic.create_teacher(
+            "T-1001", "Other", "Teacher", "", "IT", "Active"
+        )
+    )
+    reject(lambda: academic.create_teacher("BAD", "", "Teacher", "", "IT", "Active"))
+    mark("TE-02")
+    assert AcademicService().get_teacher("T-1001")[1:3] == ("Maria", "Santos")
+    mark("TE-03")
+    academic.save_teacher(
+        "T-1001",
+        "Maria",
+        "Santos",
+        "",
+        "Information Technology Department",
+        "Active",
+        source_reference="TE-04",
+    )
+    mark("TE-04")
+    academic.save_subject(
+        "SUB-CS",
+        "CSPC 103",
+        "Object Oriented Programming",
+        "",
+        3,
+        source_reference="SU-01",
+    )
+    mark("SU-01")
+    reject(lambda: academic.save_subject("DUP", "CSPC 103", "Duplicate", "", 3))
+    reject(lambda: academic.save_subject("ZERO", "ZERO", "Invalid", "", 0))
+    reject(lambda: academic.save_subject("NEG", "NEG", "Invalid", "", -1))
+    mark("SU-02")
+    assert AcademicService().get_subject("SUB-CS")[1] == "CSPC 103"
+    mark("SU-03")
+    academic.save_subject(
+        "SUB-CS",
+        "CSPC 103",
+        "Object Oriented Programming",
+        "Object-oriented analysis, design and programming in Java",
+        3,
+        source_reference="SU-04",
+    )
+    mark("SU-04")
+    academic.save_subject("TEMP", "TEMP", "Temporary", "", 1, source_reference="SU-05")
+    academic.delete_unreferenced("subject", "TEMP", source_reference="SU-05")
+    save_class("CSPC103-A")
+    mark("CL-01")
+    reject(lambda: academic.delete_unreferenced("teacher", "T-1001"))
+    with pytest.raises(ValueError, match="CSPC103-A"):
+        academic.delete_unreferenced("teacher", "T-1001")
+    mark("TE-05")
+    reject(lambda: academic.delete_unreferenced("subject", "SUB-CS"))
+    mark("SU-05")
+    reject(
+        lambda: academic.save_offering(
+            "BAD",
+            "BAD",
+            meetings((1,), "12:00", "13:00"),
+            "A",
+            "",
+            "1st",
+            "",
+            "T-1001",
+            "SUB-CS",
+        )
+    )
+    reject(
+        lambda: academic.save_offering(
+            "BAD",
+            "BAD",
+            meetings((1,), "12:00", "13:00"),
+            "A",
+            "2026-2027",
+            "1st",
+            "",
+            "",
+            "SUB-CS",
+        )
+    )
+    reject(
+        lambda: academic.save_offering(
+            "BAD",
+            "BAD",
+            meetings((1,), "12:00", "13:00"),
+            "A",
+            "2026-2027",
+            "1st",
+            "",
+            "T-1001",
+            "",
+        )
+    )
+    mark("CL-02")
+    assert AcademicService().get_offerings()[0][0] == "CSPC103-A"
+    mark("CL-03")
+    save_class("CSPC103-A", "CL-04", meetings((2, 4), "13:00", "14:30"), "CS-202")
+    mark("CL-04")
+    eids = {
+        sid: enrollment.enroll(sid, "CSPC103-A", source_reference="EN-01")
+        for sid in ids
+    }
+    mark("EN-01")
+    reject(lambda: deletion.delete("student", ids[0]))
+    mark("ST-07")
+    reject(lambda: academic.delete_unreferenced("class", "CSPC103-A"))
+    mark("CL-05")
+    reject(lambda: enrollment.enroll(ids[0], "CSPC103-A"))
+    mark("EN-02")
+    reject(lambda: enrollment.enroll("2026-9999", "CSPC103-A"))
+    mark("EN-03")
+    assert len(EnrollmentService().get_by_offering("CSPC103-A")) == 3
+    mark("EN-04")
+    enrollment.update_status(eids[ids[1]], "Dropped", source_reference="EN-05")
+    enrollment.update_status(eids[ids[1]], "Enrolled", source_reference="EN-05")
+    mark("EN-05")
+    student("2026-0098", "Carlo", "Mendoza", "BSIT", 1, "EN-06")
+    carlo = enrollment.enroll("2026-0098", "CSPC103-A", source_reference="EN-06")
+    deletion.delete("enrollment", carlo, source_reference="EN-06")
+    academic.save_period(
+        "M",
+        "Midterm",
+        date(2026, 1, 1),
+        date(2026, 5, 31),
+        "2026-2027",
+        "1st",
+        1,
+        source_reference="GP-01",
+    )
+    academic.save_period(
+        "F",
+        "Finals",
+        date(2026, 6, 1),
+        date(2026, 10, 31),
+        "2026-2027",
+        "1st",
+        2,
+        source_reference="GP-01",
+    )
+    mark("GP-01")
+    names = [
+        "Midterm Quiz",
+        "Midterm Laboratory/Project",
+        "Midterm Examination",
+        "Final Quiz",
+        "Final Laboratory/Project",
+        "Final Examination",
+    ]
+    for i, (cid, name) in enumerate(zip(cids, names)):
+        academic.save_component(
+            cid,
+            name,
+            ["Quiz", "Laboratory", "Exam"][i % 3],
+            [50, 100, 100][i % 3],
+            "",
+            "M" if i < 3 else "F",
+            source_reference="GC-01",
+        )
+    mark("GC-01")
+    periods.save_policy(policy("CSPC103-A"), weights(), source_reference="GW-01")
+    mark("GW-01")
+    reject(lambda: periods.save_policy(policy("CSPC103-A"), weights((20, 30, 40))))
+    mark("GW-02")
+    reject(lambda: periods.save_policy(policy("CSPC103-A"), weights((-1, 30, 71))))
+    reject(lambda: periods.save_policy(policy("CSPC103-A"), weights(("", 30, 70))))
+    mark("GW-03")
+    assert len(AcademicService().get_components("CSPC103-A")) == 6
+    mark("GC-02")
+    raw = [
+        [40, 90, 57, 45, 85, 80],
+        [20, 60, 55, 30, 70, 65],
+        [50, 100, 100, 48, 95, 92],
+    ]
+    for sid, values in zip(ids, raw):
+        for cid, value in zip(cids, values):
+            scores.record_score(
+                sid + "-" + cid, eids[sid], cid, value, source_reference="SC-01"
+            )
+    mark("SC-01")
+    reject(lambda: deletion.delete("enrollment", eids[ids[0]]))
+    mark("EN-06")
+    reject(lambda: academic.delete_unreferenced("grade_component", "MQ"))
+    mark("GC-03")
+    reject(lambda: scores.record_score("BAD", eids[ids[0]], "MQ", 55))
+    mark("SC-02")
+    reject(lambda: scores.record_score("BAD", eids[ids[0]], "MQ", -5))
+    mark("SC-03")
+    reject(lambda: scores.record_score("BAD", carlo, "MQ", 30))
+    mark("SC-04")
+    assert len(ScoreService().get_scores(eids[ids[0]])) == 6
+    mark("SC-05")
+    scores.record_score("IGNORED", eids[ids[0]], "ME", 75, source_reference="SC-06")
+    mark("SC-06")
+    deletion.delete("grade_component_score", ids[2] + "-FQ", source_reference="SC-07")
+    with pytest.raises(ValueError, match="Missing score"):
+        periods.calculate_and_save(eids[ids[2]])
+    scores.record_score(
+        "REENTERED-A-FQ", eids[ids[2]], "FQ", 48, source_reference="SC-07"
+    )
+    mark("SC-07")
+    for sid, value in zip(ids, [80.5, 53.5, 100]):
+        assert (
+            periods.calculate_and_save(
+                eids[sid], period="midterm", source_reference="GR-01"
+            )["midterm"]
+            == value
+        )
+    mark("GR-01")
+    for sid, value in zip(ids, [82.3, 60.7, 96.22]):
+        assert (
+            periods.calculate_and_save(eids[sid], source_reference="GR-02")["overall"]
+            == value
+        )
+    mark("GR-02")
+    with school() as c:
+        original = c.execute(
+            "SELECT score_id,score FROM grade_component_score ORDER BY score_id"
+        ).fetchall()
+    periods.save_policy(
+        policy("CSPC103-A"), weights((30, 30, 40)), source_reference="GR-03"
+    )
+    for sid, value in zip(ids, [82.5, 60.1, 96.22]):
+        assert (
+            periods.calculate_and_save(eids[sid], source_reference="GR-03")["overall"]
+            == value
+        )
+    with school() as c:
+        assert (
+            c.execute(
+                "SELECT score_id,score FROM grade_component_score ORDER BY score_id"
+            ).fetchall()
+            == original
+        )
+    mark("GR-03")
+    with school() as c:
+        events = c.execute(
+            "SELECT table_name,action,source_reference,old_value,new_value,changed_by FROM audit_log WHERE source_reference IN ('SC-06','SC-07','GR-03')"
+        ).fetchall()
+        assert all(r[-1] == "tester" for r in events)
+        assert (
+            sum(
+                r[0] == "GRADE_COMPONENT_SCORE"
+                and r[1] == "UPDATE"
+                and r[3]["score"] == 57
+                and r[4]["score"] == 75
+                for r in events
+            )
+            == 1
+        )
+        assert (
+            sum(r[0] == "GRADE_COMPONENT_SCORE" and r[1] == "DELETE" for r in events)
+            == 1
+        )
+        assert (
+            sum(r[0] == "GRADE_COMPONENT_SCORE" and r[1] == "INSERT" for r in events)
+            == 1
+        )
+        assert sum(r[0] == "GRADE_PERCENTAGE" and r[1] == "UPDATE" for r in events) == 2
+        assert sum(r[0] == "GRADE" and r[1] == "UPDATE" for r in events) == 2
+    mark("GR-04")
     snapshot = load_snapshot()
-    grade_sheet = class_report(snapshot,'O',grade_sheet=True)
-    assert grade_sheet['headers'] == ['No.','Student','Course','MG','FG']
-    assert grade_sheet['rows'] == [[1,'Dela Cruz, Juan','BSCS','2.50','2.25'],[2,'Garcia, Ana','BSCS','1.00','1.25'],[3,'Reyes, Pedro','BSCS','5.00','5.00']]
-    report = student_report(snapshot,'2026-0001','2026-2027','1st')
-    assert report['summary'] == ['Total Units: 5','No. of Subjects: 2','Grade Weighted Average: 2.05']
-    assert [row[-1] for row in report['rows']] == ['2.25','1.75']
-    assert 'Information Technology Department' in ' '.join(class_report(snapshot,'O')['metadata'])
-    from PySide6.QtWidgets import QApplication
-    from PySide6.QtGui import QFontDatabase
-    from PySide6.QtTest import QTest
-    from app.gui import pyside_app as gui
-    from app.gui.table_output import table_data
+    roster = class_report(snapshot, "CSPC103-A")
+    assert roster["rows"] == [
+        [1, "Dela Cruz, Juan", "BSCS"],
+        [2, "Garcia, Ana", "BSCS"],
+        [3, "Reyes, Pedro", "BSCS"],
+    ]
+    assert any(
+        "Information Technology Department" in line for line in roster["metadata"]
+    )
+    assert any(
+        "CS-202" in line and "TTh 1:00–2:30" in line for line in roster["metadata"]
+    )
+    mark("RP-01")
+    assert [row[-2:] for row in class_report(snapshot, "CSPC103-A", True)["rows"]] == [
+        ["2.50", "2.25"],
+        ["1.00", "1.25"],
+        ["5.00", "5.00"],
+    ]
+    mark("RP-02")
+    academic.create_teacher(
+        "T-1002",
+        "Jose",
+        "Ramos",
+        "",
+        "Physical Education Department",
+        "Active",
+        source_reference="Report setup",
+    )
+    academic.save_subject(
+        "SUB-PE",
+        "PATHFIT 3",
+        "Physical Activity Towards Health and Fitness 3",
+        "",
+        2,
+        source_reference="Report setup",
+    )
+    save_class(
+        "PATHFIT3-A",
+        "Report setup",
+        meetings((2, 4), "15:00", "17:00"),
+        "Gym",
+        "T-1002",
+        "SUB-PE",
+    )
+    pe = enrollment.enroll(ids[0], "PATHFIT3-A", source_reference="Report setup")
+    periods.save_policy(
+        policy("PATHFIT3-A"), weights(), source_reference="Report setup"
+    )
+    for cid, value in zip(cids, [45, 90, 90, 45, 90, 90]):
+        scores.record_score(
+            "PE-" + cid, pe, cid, value, source_reference="Report setup"
+        )
+    periods.calculate_and_save(pe, source_reference="Report setup")
+    snapshot = load_snapshot()
+    report = student_report(snapshot, ids[0], "2026-2027", "1st")
+    assert [r[-2:] for r in report["rows"]] == [[3, "2.25"], [2, "1.75"]]
+    mark("RP-03")
+    assert report["summary"] == [
+        "Total Units: 5",
+        "No. of Subjects: 2",
+        "Grade Weighted Average: 2.05",
+    ]
+    mark("RP-04")
+    env = dict(
+        os.environ,
+        CHECKLIST_SCHEMA=school.schema_name,
+        CHECKLIST_TEST_TOKEN=token,
+        QT_QPA_PLATFORM="offscreen",
+    )
+    probe = subprocess.run(
+        [sys.executable, "-m", "tests.checklist_restart_probe"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert probe.returncode == 0, probe.stdout + probe.stderr
+    mark("PS-01")
+    student("2026-0004", "Kevin", "O'Brien", "BSIT", 1, "PS-02")
     app = QApplication.instance() or QApplication([])
-    # Qt's offscreen Windows backend does not enumerate installed fonts.
-    for font in ['segoeui.ttf','segoeuib.ttf']:
-        path=Path('C:/Windows/Fonts')/font
-        if path.exists():
-            QFontDatabase.addApplicationFont(str(path))
-    app.setStyle('Fusion')
-    app.setStyleSheet(gui.STYLE)
-    monkey_loader = pytest.MonkeyPatch()
-    monkey_loader.setattr(gui,'load_snapshot',lambda:snapshot)
-    window=gui.StudentHub(token,auth)
-    errors=[]
-    window.error=errors.append
+    from app.gui.pyside_app import StudentHub
+
+    monkeypatch.setattr("app.gui.pyside_app.load_snapshot", load_snapshot)
+    window = StudentHub(token, auth)
+    errors = []
+    window.error = errors.append
     try:
-        window.show()
         for _ in range(300):
             if window._data_version:
                 break
             QTest.qWait(10)
-        assert window._data_version and not errors
-        window.show_page('grades')
-        assert table_data(window.grades.grade_sheet)[0] == ['No.','Student','Course','MG','FG']
-        window.show_page('reports')
-        window.reports.student.setCurrentIndex(window.reports.student.findData('2026-0001'))
-        assert window.reports.list.item(0,5).text() == '2.25'
-        assert '2.05' in window.reports.summary.text()
-        window.show_page('roster')
-        window.roster.teacher.setCurrentIndex(window.roster.teacher.findData('T-1002'))
-        assert window.roster.offering.count()==1
-        assert window.roster.offering.currentData()=='O2'
-        window.roster.teacher.setCurrentIndex(0)
-        window.roster.offering.setCurrentIndex(window.roster.offering.findData('O'))
+        assert window._data_version and not errors, errors
+        for key in window.pages:
+            window.show_page(key)
+            app.processEvents()
+        assert not errors, errors
         window.show_page('dashboard')
-        window.dashboard.search.setText('Reyes')
+        window.dashboard.search.setText("Reyes")
         assert window.dashboard.student_table.rowCount() == 1
         window.dashboard.search.setText("' OR '1'='1")
         assert window.dashboard.student_table.rowCount() == 0
-        window.dashboard.search.clear()
-        directory=os.getenv('CHECKLIST_SCREENSHOT_DIR')
-        if directory:
-            folder=Path(directory)
-            folder.mkdir(parents=True,exist_ok=True)
-            window.resize(1440,960)
-            for page in ['dashboard','grades','reports','roster']:
-                window.show_page(page)
-                QTest.qWait(300)
-                assert window.grab().save(str(folder/(page+'.png')))
+        assert StudentService().get("2026-0004")[2] == "O'Brien"
     finally:
         window.close()
-        monkey_loader.undo()
-    students.create('2026-0004','Kevin',"O'Brien",'','BSIT','Active',1)
-    academic.save_offering('OTHER-TERM','CS-NEXT','Monday','B','2027-2028','2nd','Room','T-1001','SUB')
-    future=enrollment.enroll('2026-0001','OTHER-TERM','Enrolled')
-    scoped=student_report(load_snapshot(),'2026-0001','2026-2027','1st')
-    assert len(scoped['rows'])==2 and scoped['summary'][-1].endswith('2.05')
-    deletion.delete('enrollments',future)
-    academic.delete_unreferenced('class_offerings','OTHER-TERM')
-    with connect() as conn:
-        assert conn.execute('SELECT count(*) FROM period_grade_results').fetchone()[0] == 4
-        assert conn.execute("SELECT count(*) FROM grade_audit_log WHERE changed_by='checklist-tester'").fetchone()[0] >= 7
-        assert conn.execute("SELECT changed_by FROM grade_audit_log WHERE table_name='grade_component_scores' AND action='UPDATE'").fetchone()[0] == 'checklistadmin'
-        assert conn.execute("SELECT old_value->>'score',new_value->>'score' FROM grade_audit_log WHERE table_name='grade_component_scores' AND action='UPDATE'").fetchone() == ('57.00','75.00')
-        assert conn.execute('SELECT year_level FROM students WHERE student_id=%s',('2026-0003',)).fetchone()[0] == 2
-        assert conn.execute('SELECT count(*) FROM students').fetchone()[0] == 5
-        assert conn.execute('SELECT count(*) FROM enrollments').fetchone()[0] == 4
-    # A new connection and snapshot are the durable-state check, independent of the UI cache.
-    assert student_report(load_snapshot(),'2026-0001','2026-2027','1st')['summary'][-1].endswith('2.05')
-    child=subprocess.run([sys.executable,'-m','tests.checklist_restart_probe'],
-        env=os.environ | {'CHECKLIST_SCHEMA':connect.schema_name,'CHECKLIST_TEST_TOKEN':token},
-        capture_output=True,text=True,timeout=30)
-    assert child.returncode==0,child.stdout+'\n'+child.stderr
+    mark("PS-02")
+    assert len(done) == 52, sorted(done)
+    with school() as c:
+        comparison = compare(c)
+        assert not any(r["differences"] for r in comparison.values()), json.dumps(
+            comparison, indent=2, default=str
+        )
+        assert (
+            c.execute(
+                "SELECT count(*) FROM student WHERE student_id='2026-0099'"
+            ).fetchone()[0]
+            == 0
+        )
+        assert (
+            c.execute(
+                "SELECT count(*) FROM enrollment WHERE student_id IN ('2026-0098','2026-9999')"
+            ).fetchone()[0]
+            == 0
+        )
+        assert (
+            c.execute(
+                "SELECT count(*) FROM grade_component_score WHERE score_id=%s",
+                (ids[2] + "-FQ",),
+            ).fetchone()[0]
+            == 0
+        )
+    artifact = Path(
+        os.getenv("RUBRIC_COMPARISON_PATH", "/tmp/student-rubric-comparison.json")
+    )
+    artifact.write_text(
+        json.dumps(
+            {"cases_passed": sorted(done), "tables": comparison}, indent=2, default=str
+        )
+        + "\n"
+    )

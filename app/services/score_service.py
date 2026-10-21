@@ -29,13 +29,8 @@ class ScoreService:
         if not component:
             raise ValueError("Grade component not found.")
 
-        enrollment_offering_id = enrollment[4]
-        component_offering_id = component[8]
-
-        if enrollment_offering_id != component_offering_id:
-            raise ValueError(
-                "Grade component does not belong to the student's class offering."
-            )
+        if not self.component_repository.assigned(enrollment[4],component_id):
+            raise ValueError("Grade component is not assigned to the student's class offering.")
 
         maximum = float(component[3])
         score = float(score)

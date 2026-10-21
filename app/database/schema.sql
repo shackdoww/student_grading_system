@@ -244,3 +244,52 @@ DO $$ DECLARE target TEXT; BEGIN
         EXECUTE format('CREATE CONSTRAINT TRIGGER valid_configuration AFTER INSERT OR UPDATE OR DELETE ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_configuration()',target);
     END LOOP;
 END $$;
+
+-- Structured meetings power selectable schedules; CLASS.schedule is its rubric display.
+CREATE TABLE class_meeting (
+    meeting_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    class_id VARCHAR(50) NOT NULL REFERENCES class(class_id) ON DELETE CASCADE,
+    weekday SMALLINT NOT NULL CHECK (weekday BETWEEN 1 AND 7),
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL CHECK (end_time>start_time),
+    UNIQUE(class_id,weekday,start_time,end_time)
+);
+CREATE INDEX meeting_overlap_idx ON class_meeting(weekday,start_time,end_time);
+CREATE FUNCTION lock_timetable() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(hashtext(current_schema() || ':timetable'));
+    RETURN COALESCE(NEW,OLD);
+END $$ LANGUAGE plpgsql;
+CREATE FUNCTION validate_timetable() RETURNS TRIGGER AS $$
+DECLARE first_code TEXT; second_code TEXT;
+BEGIN
+    SELECT c.class_code,d.class_code INTO first_code,second_code
+    FROM class_meeting a JOIN class_meeting b ON a.meeting_id<b.meeting_id
+      AND a.weekday=b.weekday AND a.start_time<b.end_time AND b.start_time<a.end_time
+    JOIN class c ON c.class_id=a.class_id JOIN class d ON d.class_id=b.class_id
+    WHERE (c.school_year,c.semester)=(d.school_year,d.semester) AND (
+      c.class_id=d.class_id OR c.teacher_id=d.teacher_id OR
+      (NULLIF(lower(btrim(c.room)),'') IS NOT NULL AND lower(btrim(c.room))=lower(btrim(d.room))) OR
+      EXISTS(SELECT 1 FROM enrollment e JOIN enrollment f USING(student_id)
+        WHERE e.class_id=c.class_id AND f.class_id=d.class_id
+        AND e.status IN ('Enrolled','Active') AND f.status IN ('Enrolled','Active')))
+    LIMIT 1;
+    IF first_code IS NOT NULL THEN
+        RAISE EXCEPTION 'Schedule conflict between % and %: overlapping teacher, room, student or class time.',first_code,second_code;
+    END IF;
+    RETURN NULL;
+END $$ LANGUAGE plpgsql;
+DO $$ DECLARE target TEXT; BEGIN
+    FOREACH target IN ARRAY ARRAY['class_meeting','class','enrollment'] LOOP
+        EXECUTE format('CREATE TRIGGER timetable_lock BEFORE INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION lock_timetable()',target);
+        EXECUTE format('CREATE CONSTRAINT TRIGGER timetable_valid AFTER INSERT OR UPDATE OR DELETE ON %I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_timetable()',target);
+    END LOOP;
+END $$;
+
+-- Original legacy CSV values are retained as evidence, never used as active grades.
+CREATE TABLE import_archive (
+    import_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    payload JSONB NOT NULL,
+    imported_by TEXT,
+    imported_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

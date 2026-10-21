@@ -9,7 +9,7 @@ class SubjectRepository:
         try:
             cursor.execute("""
                 SELECT subject_id, subject_code, subject_name, description, units
-                FROM subjects ORDER BY subject_code
+                FROM subject ORDER BY subject_code
             """)
             return cursor.fetchall()
         finally:
@@ -22,7 +22,7 @@ class SubjectRepository:
         try:
             cursor.execute("""
                 SELECT subject_id, subject_code, subject_name, description, units
-                FROM subjects WHERE subject_id = %s
+                FROM subject WHERE subject_id = %s
             """, (subject_id,))
             return cursor.fetchone()
         finally:
@@ -34,7 +34,7 @@ class SubjectRepository:
         cursor = connection.cursor()
         try:
             cursor.execute("""
-                INSERT INTO subjects
+                INSERT INTO subject
                     (subject_id, subject_code, subject_name, description, units)
                 VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (subject_id) DO UPDATE SET
@@ -42,7 +42,7 @@ class SubjectRepository:
                     subject_name = EXCLUDED.subject_name,
                     description = EXCLUDED.description,
                     units = EXCLUDED.units
-            """, (subject_id, subject_code, subject_name, description, units))
+            """, (subject_id, subject_code, subject_name, description or None, units))
             connection.commit()
         except Exception:
             connection.rollback()
@@ -55,7 +55,7 @@ class SubjectRepository:
         connection = get_connection()
         cursor = connection.cursor()
         try:
-            cursor.execute("DELETE FROM subjects WHERE subject_id = %s", (subject_id,))
+            cursor.execute("DELETE FROM subject WHERE subject_id = %s", (subject_id,))
             deleted = cursor.rowcount > 0
             connection.commit()
             return deleted

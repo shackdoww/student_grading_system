@@ -1,43 +1,26 @@
-# School Test Dataset
+# Legacy school CSV example
 
-A realistic relational dataset for school year 2026-2027.
+These ten files describe the older class-owned category model (30 students,
+8 teachers, 12 subjects/classes, 60 enrollments and 360 scores). They are not the
+rubric's final demonstration dataset and must not be presented as such.
 
-Records:
-- 30 students (S101-S130)
-- 8 teachers
-- 12 subjects
-- 2 grading periods
-- 12 class offerings
-- 36 grading percentages
-- 72 grade components
-- 60 enrollments
-- 360 component scores
-- 60 final grades
+Select this folder in Data Import, validate, then confirm the transactional import.
+The importer recognizes `percentage_id` on legacy components, converts exact
+category averages to class/component weights, and preserves the original CSV
+values in `import_archive`. It does not merge component identities or fabricate
+period results from the old final-percentage column. Old schedules lack explicit
+AM/PM values: confirm them in the class day/time editor. Configure the class
+period policy and recompute grades afterward.
 
-Import order used by the application:
-1. school_students.csv
-2. school_teachers.csv
-3. school_subjects.csv
-4. school_grading_periods.csv
-5. school_class_offerings.csv
-6. school_grade_percentages.csv
-7. school_grade_components.csv
-8. school_enrollments.csv
-9. school_grade_component_scores.csv
-10. school_grades.csv
+Canonical format uses the same filenames for master records, components, scores
+and grades, plus `school_class_meetings.csv` and `school_grading_policies.csv`.
+The column lists are declared in `app/services/school_data_import_service.py`.
+Key changes: `class_id` replaces `offering_id`; components have no percentage
+parent; weights have `class_id,component_id,percentage`; grades contain Midterm,
+Finals, Overall and their equivalents. Meetings use weekday 1=Monday through
+7=Sunday and 24-hour `start_time,end_time`. Optional `source_reference` is stored
+as provenance; actor fields are always supplied by the signed-in application.
 
-## In-app import
-
-Use **Data Import** in the application's sidebar.
-
-1. Click **SELECT DATASET FOLDER**.
-2. Select this `test_data` folder.
-3. Click **VALIDATE DATA**.
-4. Review the validation result.
-5. Click **IMPORT ENTIRE SCHOOL DATASET**.
-
-The importer validates all ten files before writing anything. The database writes occur in foreign-key order inside one PostgreSQL transaction. If any insert/update fails, the entire transaction is rolled back.
-
-Records with an existing primary key are updated, which makes the school dataset import repeatable. Unique-key conflicts involving a different existing record are rejected during validation.
-
-The data uses S101-S130 for students so it does not conflict with the original S001 sample student.
+Use the same semester vocabulary across classes and periods. Optional emails,
+descriptions and remarks may be blank. Nonfinite numbers, broken references,
+invalid totals and timetable conflicts are rejected without saved changes.

@@ -14,7 +14,7 @@ from app.services.account_service import AccountService
 
 def main():
     schema=os.environ['CHECKLIST_SCHEMA']
-    if not schema.startswith('test_checklist_') or not schema.replace('_','').isalnum():
+    if not schema.startswith('test_rubric_') or not schema.replace('_','').isalnum():
         raise ValueError('This probe only reads the generated checklist test schema.')
     def connect():
         connection=psycopg.connect(os.environ['CHECKLIST_TEST_DSN'])
@@ -33,7 +33,7 @@ def main():
                     break
                 QTest.qWait(10)
             assert window._data_version
-            window.show_page('grades')
+            window.show_page('grade')
             assert window.grades.grade_sheet.item(0,4).text()=='2.25'
             window.show_page('reports')
             window.reports.student.setCurrentIndex(window.reports.student.findData('2026-0001'))

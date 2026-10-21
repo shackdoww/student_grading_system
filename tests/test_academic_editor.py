@@ -25,21 +25,21 @@ def test_editor_preserves_identity_and_parses_dates():
 
 def test_snapshot_editor_data_is_detached():
     snapshot = DataSnapshot()
-    snapshot.records()['teachers'].append({'teacher_id': 'new'})
-    assert snapshot.records()['teachers'] == []
+    snapshot.records()['teacher'].append({'teacher_id': 'new'})
+    assert snapshot.records()['teacher'] == []
 
 
 @pytest.mark.parametrize('referenced', [True, False])
 def test_protected_delete_checks_children_before_deleting(monkeypatch, referenced):
     connection = MagicMock()
     cursor = connection.__enter__.return_value.cursor.return_value.__enter__.return_value
-    cursor.fetchone.side_effect = [('C1',), (1,) if referenced else None]
+    cursor.fetchone.side_effect = [('C1',), (1,) if referenced else None, None]
     monkeypatch.setattr(protected_delete, 'get_connection', lambda: connection)
     if referenced:
         with pytest.raises(ValueError, match='preserve evidence'):
-            protected_delete.delete_unreferenced('grade_components', 'C1')
+            protected_delete.delete_unreferenced('grade_component', 'C1')
         assert cursor.execute.call_count == 2
     else:
-        protected_delete.delete_unreferenced('grade_components', 'C1')
-        assert cursor.execute.call_count == 3
+        protected_delete.delete_unreferenced('grade_component', 'C1')
+        assert cursor.execute.call_count == 4
     assert all(call.args[1] == ('C1',) for call in cursor.execute.call_args_list)

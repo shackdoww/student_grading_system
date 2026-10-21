@@ -9,13 +9,13 @@ class ClassOfferingRepository:
         try:
             cursor.execute("""
                 SELECT
-                    co.offering_id, co.class_code, co.schedule, co.section,
+                    co.class_id, co.class_code, co.schedule, co.section,
                     co.school_year, co.semester, co.room, co.teacher_id,
                     t.first_name, t.last_name, co.subject_id,
                     s.subject_code, s.subject_name
-                FROM class_offerings co
-                JOIN teachers t ON co.teacher_id = t.teacher_id
-                JOIN subjects s ON co.subject_id = s.subject_id
+                FROM class co
+                JOIN teacher t ON co.teacher_id = t.teacher_id
+                JOIN subject s ON co.subject_id = s.subject_id
                 ORDER BY co.school_year, co.semester, s.subject_code, co.section
             """)
             return cursor.fetchall()
@@ -23,31 +23,31 @@ class ClassOfferingRepository:
             cursor.close()
             connection.close()
 
-    def find_by_id(self, offering_id):
+    def find_by_id(self, class_id):
         connection = get_connection()
         cursor = connection.cursor()
         try:
             cursor.execute("""
-                SELECT offering_id, class_code, schedule, section,
+                SELECT class_id, class_code, schedule, section,
                        school_year, semester, room, teacher_id, subject_id
-                FROM class_offerings WHERE offering_id = %s
-            """, (offering_id,))
+                FROM class WHERE class_id = %s
+            """, (class_id,))
             return cursor.fetchone()
         finally:
             cursor.close()
             connection.close()
 
-    def save(self, offering_id, class_code, schedule, section,
-             school_year, semester, room, teacher_id, subject_id):
+    def save(self, class_id, class_code, schedule, section,
+             school_year, semester, room, teacher_id, subject_id, meetings=None):
         connection = get_connection()
         cursor = connection.cursor()
         try:
             cursor.execute("""
-                INSERT INTO class_offerings
-                    (offering_id, class_code, schedule, section, school_year,
+                INSERT INTO class
+                    (class_id, class_code, schedule, section, school_year,
                      semester, room, teacher_id, subject_id)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (offering_id) DO UPDATE SET
+                ON CONFLICT (class_id) DO UPDATE SET
                     class_code = EXCLUDED.class_code,
                     schedule = EXCLUDED.schedule,
                     section = EXCLUDED.section,
@@ -56,8 +56,13 @@ class ClassOfferingRepository:
                     room = EXCLUDED.room,
                     teacher_id = EXCLUDED.teacher_id,
                     subject_id = EXCLUDED.subject_id
-            """, (offering_id, class_code, schedule, section, school_year,
+            """, (class_id, class_code, schedule, section, school_year,
                   semester, room, teacher_id, subject_id))
+            if meetings is not None:
+                cursor.execute('DELETE FROM class_meeting WHERE class_id=%s',(class_id,))
+                for meeting in meetings:
+                    cursor.execute('INSERT INTO class_meeting(class_id,weekday,start_time,end_time) VALUES (%s,%s,%s,%s)',
+                        (class_id,meeting['weekday'],meeting['start_time'],meeting['end_time']))
             connection.commit()
         except Exception:
             connection.rollback()
@@ -66,13 +71,13 @@ class ClassOfferingRepository:
             cursor.close()
             connection.close()
 
-    def delete(self, offering_id):
+    def delete(self, class_id):
         connection = get_connection()
         cursor = connection.cursor()
         try:
             cursor.execute(
-                "DELETE FROM class_offerings WHERE offering_id = %s",
-                (offering_id,)
+                "DELETE FROM class WHERE class_id = %s",
+                (class_id,)
             )
             deleted = cursor.rowcount > 0
             connection.commit()

@@ -21,16 +21,17 @@ class ScoreRepository:
                     gc.description,
                     gp.percentage_id,
                     gp.percentage,
-                    gp.offering_id,
+                    gp.class_id,
                     gcp.name,
                     gcp.start_date,
                     gcp.end_date
-                FROM grade_component_scores gcs
-                JOIN grade_components gc
+                FROM grade_component_score gcs
+                JOIN grade_component gc
                     ON gcs.component_id = gc.component_id
-                JOIN grade_percentages gp
-                    ON gc.percentage_id = gp.percentage_id
-                JOIN grading_periods gcp
+                JOIN grade_percentage gp
+                    ON gc.component_id = gp.component_id
+                JOIN enrollment e ON e.enrollment_id=gcs.enrollment_id AND e.class_id=gp.class_id
+                JOIN grading_period gcp
                     ON gc.period_id = gcp.period_id
                 WHERE gcs.enrollment_id = %s
                 ORDER BY gcp.start_date, gc.component_id
@@ -46,7 +47,7 @@ class ScoreRepository:
 
         try:
             cursor.execute("""
-                INSERT INTO grade_component_scores (
+                INSERT INTO grade_component_score (
                     score_id,
                     score,
                     remarks,
@@ -63,7 +64,7 @@ class ScoreRepository:
             """, (
                 score_id,
                 score,
-                remarks,
+                remarks or None,
                 date_recorded,
                 enrollment_id,
                 component_id
@@ -82,7 +83,7 @@ class ScoreRepository:
 
         try:
             cursor.execute(
-                "DELETE FROM grade_component_scores WHERE score_id = %s",
+                "DELETE FROM grade_component_score WHERE score_id = %s",
                 (score_id,)
             )
             deleted = cursor.rowcount > 0

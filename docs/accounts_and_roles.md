@@ -1,8 +1,6 @@
 # Accounts and roles
 
-Run `python -m app.database.apply_migration --accounts` once after the earlier
-migrations. Migration 003 is additive and repeatable. It creates user accounts,
-hashed-token sessions, and security events without changing school records.
+Install or migrate with `python -m app.database.apply_migration --all`. Existing accounts, sessions and security events are preserved during conversion. Use `--preflight` first on existing databases.
 
 Start the application with `python main.py`. If no accounts exist, the local
 setup screen creates the first Admin. Choose your own username, name and a
@@ -13,8 +11,8 @@ After setup, every application launch requires sign-in.
 | Role | Access |
 | --- | --- |
 | Admin | All school workflows, account management, import and permanent deletion |
-| College Dean | School-wide reports and academic/grading configuration; no score entry, account management or deletion |
-| Teacher | Reports, scores and grading for classes assigned to the linked teacher record |
+| College Dean | School-wide reports and shared academic/grading configuration; no score entry, account management or deletion |
+| Teacher | Reports, scores, component assignments and weights for assigned classes; shared component definitions are Admin/Dean only |
 | Registrar | School-wide reports, student records and enrollment; no grading changes or deletion |
 
 Teacher accounts require an existing teacher record. Admins create accounts,
@@ -60,20 +58,20 @@ transaction. A batch is all-or-nothing: a missing record, dependency or database
 error rolls back the whole batch, including its audit entries. Dependencies
 block deletion; the app never automatically cascades away raw academic evidence.
 
-To clear school records, delete period results and saved grades, then raw scores,
-then enrollments. Remove period policies (including their category-weight rows),
-components, category weights, classes, periods, subjects and unreferenced
-teachers/students. Teacher records linked to accounts remain protected; an Admin
-must first change those accounts to a non-Teacher role. Accounts, sessions and
-security events are intentionally not included in this school-record cleanup.
+To clear school records, delete saved grades, then raw scores and enrollments.
+Remove class policies (which remove their component weight assignments), then
+unused components, classes, periods, subjects and teachers/students. Teacher
+records linked to accounts remain protected. Accounts, sessions and security
+events are intentionally excluded from school-record cleanup.
+
+Set by stores optional source references, separate from actual actor identities.
+Ordinary writes and batch deletions consistently attribute audit events to the
+signed-in username. Unknown historic actors are not invented during migration.
 
 ## Verification
 
-`python -m pytest -q` covers hashing, role decisions, denied writes, teacher scope,
-session rejection and existing GUI/business behavior.
-`python -m tests.verify_period_grading` creates an isolated disposable schema
-and checks real account bootstrap, login, role changes, lockout, revocation,
-teacher ownership, scoped reads, audited protected deletion, and batch rollback in addition to
-the grading workflow. Test accounts are removed with that isolated schema.
-GUI smoke tests use explicit fake authentication to test layout without creating
-production accounts; that helper exists only under `tests/`.
+Run `python -m pytest -q`; set `QT_QPA_PLATFORM=offscreen` for headless Qt. Set
+`CHECKLIST_TEST_DSN` to a disposable PostgreSQL database to include actual account
+bootstrap/login, Teacher permissions, provenance, protected deletion and rollback
+checks. These tests never use the configured school's schema. UI helpers provide
+explicit fake authentication only inside `tests/`; startup uses real accounts.

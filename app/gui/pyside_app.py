@@ -22,7 +22,6 @@ from app.gui.data_snapshot import DataSnapshot, load_snapshot
 from app.gui.window_chrome import BorderlessWindow, TitleBar
 
 from app.services.enrollment_service import EnrollmentService
-from app.services.grading_service import GradingService
 from app.services.school_data_import_service import SchoolDataImportService, DATASETS
 from app.services.score_service import ScoreService
 from app.services.student_service import StudentService
@@ -371,9 +370,9 @@ class DashboardPage(QWidget):
         ql = QVBoxLayout(quick)
         ql.setContentsMargins(0, 0, 0, 0)
         quick_grid = QGridLayout()
-        quick_grid.addWidget(button("Class Grades", lambda: self.app.show_page("grades"), compact=True), 0, 0)
+        quick_grid.addWidget(button("Class Grades", lambda: self.app.show_page("grade"), compact=True), 0, 0)
         quick_grid.addWidget(button("Academic", lambda: self.app.show_page("academic"), compact=True), 0, 1)
-        quick_grid.addWidget(button("Enrollments", lambda: self.app.show_page("enrollments"), compact=True), 0, 2)
+        quick_grid.addWidget(button("Enrollments", lambda: self.app.show_page("enrollment"), compact=True), 0, 2)
         quick_grid.addWidget(button("Report", self.open_report, compact=True), 0, 3)
         quick_grid.addWidget(button('Edit student', self.edit_student, compact=True), 1, 0, 1, 2)
         quick_grid.addWidget(button('Delete student', self.delete_student, compact=True), 1, 2, 1, 2)
@@ -419,7 +418,7 @@ class DashboardPage(QWidget):
             self.student_badge.setText('SH')
             self.selected_info.setText("Add a student or adjust your search.")
             self.grade_label.setText("—")
-            self.enrollment_label.setText("No enrollments selected")
+            self.enrollment_label.setText("No enrollment selected")
 
     def student_selected(self):
         rows = self.student_table.selectedItems()
@@ -451,7 +450,7 @@ class DashboardPage(QWidget):
             self.app.error(str(e))
 
     def edit_student(self, *_):
-        if not self.app.can('students') or not self.selected_student:
+        if not self.app.can('student') or not self.selected_student:
             return
         dialog = StudentDialog(self, self.app.data.student(self.selected_student))
         if dialog.exec() == QDialog.Accepted:
@@ -463,7 +462,7 @@ class DashboardPage(QWidget):
             return
         sid = self.selected_student
         if QMessageBox.question(self, 'Delete student', f'Delete {sid}? Students with enrollments are protected.') == QMessageBox.Yes:
-            self.app.run_write(lambda: self.app.deletion_service.delete('students',sid),'Student deleted.')
+            self.app.run_write(lambda: self.app.deletion_service.delete('student',sid),'Student deleted.')
 
     def open_report(self):
         if not self.selected_student:
@@ -493,15 +492,18 @@ class AcademicPage(QWidget):
         self.subject_table = table(["ID", "Code", "Subject", "Units", "Description"])
         self.period_table = table(["ID", "Name", "Start", "End", "School Year", "Semester", "Order"])
         self.offering_table = table(["ID", "Class", "Subject", "Section", "Schedule", "Teacher", "Room"])
-        self.weight_table = table(["ID", "Percentage", "Class ID"])
-        self.component_table = table(["ID", "Name", "Type", "Maximum", "Description", "Period ID", "Weight ID"])
+        self.weight_table = table(["ID", "Percentage", "Class ID", "Component ID"])
+        self.component_table = table(["ID", "Name", "Type", "Maximum", "Description", "Period ID"])
         for name, t in [("Teachers", self.teacher_table), ("Subjects", self.subject_table),
                         ("Grading Periods", self.period_table), ("Class Offerings", self.offering_table),
                         ("Weights", self.weight_table), ("Components", self.component_table)]:
             card = Card()
             l = QVBoxLayout(card)
             l.setContentsMargins(14, 14, 14, 14)
-            add_editor_actions(l, self.app, name, t)
+            if name == 'Weights':
+                l.addWidget(button('Configure class weights in Class Grades → Period Setup', lambda: self.app.show_page('grade')))
+            else:
+                add_editor_actions(l, self.app, name, t)
             t.setProperty('outputTitle', name)
             l.addWidget(t)
             self.tabs.addTab(card, name)
@@ -516,8 +518,8 @@ class AcademicPage(QWidget):
             fill_table(self.period_table, [list(r) for r in periods])
             offerings = self.app.data.offerings()
             records = self.app.data.records()
-            fill_table(self.weight_table, [(r['percentage_id'], r['percentage'], r['offering_id']) for r in records['grade_percentages']])
-            fill_table(self.component_table, [(r[k] for k in 'component_id name type max_score description period_id percentage_id'.split()) for r in records['grade_components']])
+            fill_table(self.weight_table, [(r['percentage_id'], r['percentage'], r['class_id'], r['component_id']) for r in records['grade_percentage']])
+            fill_table(self.component_table, [(r[k] for k in 'component_id name type max_score description period_id'.split()) for r in records['grade_component']])
             fill_table(self.offering_table, [(r[0], r[1], r[11] + " — " + r[12], r[3], r[2], f"{r[8]} {r[9]}", r[6] or "—") for r in offerings])
         except Exception as e:
             self.app.error(str(e))
@@ -530,7 +532,7 @@ class EnrollmentsPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 18, 24, 20)
         root.setSpacing(14)
-        root.addWidget(PageHeader("Enrollments", "Connect students to class offerings without leaving the workspace.", button("Refresh", self.app.reload_data)))
+        root.addWidget(PageHeader("Enrollments", "Connect student to class offerings without leaving the workspace.", button("Refresh", self.app.reload_data)))
 
         editor = Card()
         form = QGridLayout(editor)
@@ -606,8 +608,8 @@ class EnrollmentsPage(QWidget):
             self.app.warning('Select an enrollment first.')
             return
         eid = self.enrollment_keys[row]
-        if QMessageBox.question(self,'Remove enrollment','Remove this enrollment? Enrollments with scores or saved grades are protected.') == QMessageBox.Yes:
-            self.app.run_write(lambda: self.app.deletion_service.delete('enrollments',eid),'Enrollment removed.')
+        if QMessageBox.question(self,'Remove enrollment','Remove this enrollment? Enrollments with scores or saved grade are protected.') == QMessageBox.Yes:
+            self.app.run_write(lambda: self.app.deletion_service.delete('enrollment',eid),'Enrollment removed.')
 
     def save(self):
         if not self.student.currentData() or not self.offering.currentData():
@@ -647,11 +649,12 @@ class GradesPage(QWidget):
         l = QVBoxLayout(card)
         l.setContentsMargins(14, 14, 14, 14)
         actions = QHBoxLayout()
-        actions.addWidget(styled_label("Roster & grades", "cardTitle"))
+        actions.addWidget(styled_label("Roster & grade", "cardTitle"))
         actions.addStretch()
         actions.addWidget(button("Record Score", self.record_score, True))
         actions.addWidget(button("Period Setup", self.configure_periods))
-        actions.addWidget(button("Save Period Grades", self.save_period_grades))
+        actions.addWidget(button("Save Midterm", self.save_midterm))
+        actions.addWidget(button("Save Grades", self.save_period_grades))
         audit = button('Audit history', self.show_audit)
         audit.setVisible(self.app.can('delete'))
         actions.addWidget(audit)
@@ -737,7 +740,7 @@ class GradesPage(QWidget):
         dialog.resize(1000,540)
         layout = QVBoxLayout(dialog)
         audit_table = table(['When','Who','Table','Record','Action','Before','After'])
-        rows = sorted(self.app.data.records()['grade_audit_log'], key=lambda r:r['log_id'],reverse=True)
+        rows = sorted(self.app.data.records()['audit_log'], key=lambda r:r['log_id'],reverse=True)
         fill_table(audit_table,[[str(r.get(k) or '') for k in ['changed_at','changed_by','table_name','record_id','action','old_value','new_value']] for r in rows])
         layout.addWidget(audit_table)
         dialog.exec()
@@ -748,7 +751,8 @@ class GradesPage(QWidget):
         dialog = PeriodPolicyDialog(self, self.current_offering, self.app.data.records())
         if dialog.exec() == QDialog.Accepted:
             policy, weights = dialog.values()
-            self.app.run_write(lambda: self.app.period_service.save_policy(policy, weights), 'Period grading configuration saved.')
+            reference=dialog.source.text().strip() or None
+            self.app.run_write(lambda: self.app.period_service.save_policy(policy, weights, source_reference=reference), 'Period grading configuration saved.')
 
     def save_period_grades(self):
         row = self.roster.currentRow()
@@ -759,6 +763,15 @@ class GradesPage(QWidget):
         self.app.run_write(lambda: self.app.period_service.calculate_and_save(eid),
                            lambda result: f"Period grades saved. Overall: {result['overall']:.2f}%")
 
+    def save_midterm(self):
+        row=self.roster.currentRow()
+        if row<0:
+            self.app.warning('Select a student in the roster first.')
+            return
+        eid=self.roster.item(row,0).data(ENROLLMENT_ROLE)
+        self.app.run_write(lambda:self.app.period_service.calculate_and_save(eid,period='midterm'),
+            lambda result:f"Midterm saved: {result['midterm']:.2f}%")
+
     def record_score(self):
         row = self.roster.currentRow()
         if row < 0:
@@ -766,31 +779,20 @@ class GradesPage(QWidget):
             return
         eid = self.roster.item(row, 0).data(ENROLLMENT_ROLE)
         components = self.app.data.components_for_offering(self.current_offering)
-        scores = [s for s in self.app.data.records()['grade_component_scores'] if s['enrollment_id']==eid]
+        scores = [s for s in self.app.data.records()['grade_component_score'] if s['enrollment_id']==eid]
         d = ScoreDialog(self, eid, components, scores=scores)
         if d.exec() != QDialog.Accepted:
             return
         try:
             score_id, cid, score, remarks = d.values()
             if d.delete_requested:
-                self.app.run_write(lambda: self.app.deletion_service.delete('grade_component_scores',score_id),'Score deleted. Re-enter it and recompute to complete the grade.')
+                self.app.run_write(lambda: self.app.deletion_service.delete('grade_component_score',score_id),'Score deleted. Re-enter it and recompute to complete the grade.')
                 return
             self.app.run_write(lambda: self.app.score_service.record_score(score_id, eid, cid, score, remarks),
                                "Score recorded.")
         except Exception as e:
             self.app.error(str(e))
 
-    def save_grade(self):
-        row = self.roster.currentRow()
-        if row < 0:
-            self.app.warning("Select a student first.")
-            return
-        eid = self.roster.item(row, 0).data(ENROLLMENT_ROLE)
-        try:
-            self.app.run_write(lambda: self.app.grading_service.calculate_and_save_grade(eid),
-                               lambda grade: f"Grade saved: {grade:.2f}%")
-        except Exception as e:
-            self.app.error(str(e))
 
 
 class RosterPage(QWidget):
@@ -834,7 +836,7 @@ class RosterPage(QWidget):
         selected_teacher = self.teacher.currentData()
         self.teacher.blockSignals(True)
         self.teacher.clear()
-        self.teacher.addItem('All teachers',None)
+        self.teacher.addItem('All teacher',None)
         for teacher in self.app.data.teachers():
             self.teacher.addItem(f'{teacher[1]} {teacher[2]}',teacher[0])
         index=self.teacher.findData(selected_teacher)
@@ -890,7 +892,7 @@ class ReportsPage(QWidget):
         self.term.currentIndexChanged.connect(lambda: self.load_student(self.student.currentData()))
         header.addWidget(self.term)
         header.addWidget(button("Refresh", self.app.reload_data, False, True))
-        root.addWidget(PageHeader("Student Report", "Saved subject grades and a units-weighted average for the selected term.", actions))
+        root.addWidget(PageHeader("Student Report", "Saved subject grade and a units-weighted average for the selected term.", actions))
         profile = Card()
         pl = QVBoxLayout(profile)
         pl.setContentsMargins(22, 18, 22, 18)
@@ -930,7 +932,7 @@ class ReportsPage(QWidget):
         if not sid:
             self.name.setText("Select a student")
             self.info.clear()
-            self.summary.setText("No grades available")
+            self.summary.setText("No grade available")
             fill_table(self.list, [])
             return
         try:
@@ -948,7 +950,7 @@ class ReportsPage(QWidget):
             self.name.setText(f'{s[2]}, {s[1]}')
             if not terms:
                 self.info.setText(f'{s[0]} · {s[4]}')
-                self.summary.setText('No enrollments in this term')
+                self.summary.setText('No enrollment in this term')
                 fill_table(self.list,[])
                 self.list.setProperty('reportMetadata',[])
                 self.list.setProperty('reportSummary',[])
@@ -984,7 +986,7 @@ class ImportPage(QWidget):
         card = Card()
         l = QVBoxLayout(card)
         l.setContentsMargins(18, 18, 18, 18)
-        l.addWidget(styled_label("10 DATASETS", "eyebrow"))
+        l.addWidget(styled_label(f"{len(DATASETS)} DATASETS", "eyebrow"))
         self.rows = QGridLayout()
         self.rows.setVerticalSpacing(8)
         l.addLayout(self.rows)
@@ -1041,7 +1043,7 @@ class ImportPage(QWidget):
             return
         self._validating = True
         self.datasets = None
-        self.status.setText("Validating all 10 datasets…")
+        self.status.setText("Validating all datasets…")
         self.validate_btn.setEnabled(False)
         self.import_btn.setEnabled(False)
         folder = self.folder
@@ -1061,8 +1063,9 @@ class ImportPage(QWidget):
                 QMessageBox.warning(self, "Validation failed", "\n".join(errors[:40]))
                 return
             self.datasets = datasets
-            total = sum(len(rows) for rows in datasets.values())
-            for name, rows in datasets.items():
+            total = sum(len(datasets.get(name,[])) for name,_,_ in DATASETS)
+            for name,_,_ in DATASETS:
+                rows=datasets.get(name,[])
                 self.row_labels[name].setText(f"{len(rows)} RECORDS")
             self.import_btn.setEnabled(True)
             self.status.setText(f"Validation passed · {total} records ready.")
@@ -1078,10 +1081,10 @@ class ImportPage(QWidget):
     def import_data(self):
         if not self.datasets or self.app._writing:
             return
-        if QMessageBox.question(self, "Import dataset", "Import all 10 datasets in one PostgreSQL transaction?") != QMessageBox.Yes:
+        if QMessageBox.question(self, "Import dataset", "Import all datasets in one PostgreSQL transaction?") != QMessageBox.Yes:
             return
         datasets = self.datasets
-        total = sum(len(rows) for rows in datasets.values())
+        total = sum(len(datasets.get(name,[])) for name,_,_ in DATASETS)
         self.import_btn.setEnabled(False)
         self.status.setText("Importing school data…")
 
@@ -1113,9 +1116,8 @@ class StudentHub(BorderlessWindow):
         self.student_service = SecuredService(StudentService(), self.guard)
         self.academic_service = SecuredService(AcademicService(), self.guard)
         self.period_service = SecuredService(PeriodGradingService(), self.guard)
-        self.enrollment_service = SecuredService(EnrollmentService(), self.guard, {'save': ('enrollments', None)})
+        self.enrollment_service = SecuredService(EnrollmentService(), self.guard, {'save': ('enrollment', None)})
         self.score_service = SecuredService(ScoreService(), self.guard)
-        self.grading_service = SecuredService(GradingService(), self.guard)
 
         self.data = DataSnapshot()
         self.jobs = BackgroundJobs(self)
@@ -1126,6 +1128,10 @@ class StudentHub(BorderlessWindow):
         self._data_version = 0
         self._rendered_versions = {}
         self.build_ui()
+        self.source_reference=QLineEdit()
+        self.source_reference.setPlaceholderText("Optional source / reference for changes")
+        self.source_reference.setMaximumWidth(320)
+        self.title_bar.layout().insertWidget(1,self.source_reference)
         self.apply_permissions()
         QTimer.singleShot(0, self.reload_data)
         self.auto_refresh = QTimer(self)
@@ -1137,10 +1143,10 @@ class StudentHub(BorderlessWindow):
         return allowed(self.account['role'], action)
 
     def apply_permissions(self):
-        actions = {'Add student': 'students', 'Edit student':'students', 'Delete student':'delete',
-                   'Update selected status':'enrollments','Remove selected enrollment':'delete', 'Enroll Student': 'enrollments',
-                   'Record Score': 'scores', 'Save Legacy Grade': 'grades',
-                   'Save Period Grades': 'grades', 'Period Setup': 'grading'}
+        actions = {'Add student': 'student', 'Edit student':'student', 'Delete student':'delete',
+                   'Update selected status':'enrollment','Remove selected enrollment':'delete', 'Enroll Student': 'enrollment',
+                   'Record Score': 'scores',
+                   'Save Grades': 'grade', 'Save Midterm':'grade', 'Period Setup': 'grading'}
         for control in self.findChildren(QPushButton):
             if control.text() in actions:
                 control.setEnabled(self.can(actions[control.text()]))
@@ -1192,10 +1198,10 @@ class StudentHub(BorderlessWindow):
         self.nav_buttons = {}
         items = [
             ("dashboard", "Dashboard", "house.svg"),
-            ("grades", "Class Grades", "chart.svg"),
+            ("grade", "Class Grades", "chart.svg"),
             ("reports", "Reports", "file-text.svg"),
             ("academic", "Academic", "book-open.svg"),
-            ("enrollments", "Enrollments", "users-round.svg"),
+            ("enrollment", "Enrollments", "users-round.svg"),
             ("roster", "Class / Section", "graduation-cap.svg"),
             ("import", "Data Import", "upload.svg"),
         ]
@@ -1286,8 +1292,8 @@ class StudentHub(BorderlessWindow):
         self.roster = RosterPage(self)
         self.import_page = ImportPage(self)
         for key, page in [
-            ("dashboard", self.dashboard), ("grades", self.grades), ("reports", self.reports),
-            ("academic", self.academic), ("enrollments", self.enrollments),
+            ("dashboard", self.dashboard), ("grade", self.grades), ("reports", self.reports),
+            ("academic", self.academic), ("enrollment", self.enrollments),
             ("roster", self.roster), ("import", self.import_page)
         ] + ([('accounts', AccountsPage(self, table, fill_table)), ('records', DataRecordsPage(self, table, fill_table))] if self.can('accounts') else []):
             page.setObjectName("workspacePage")
@@ -1434,7 +1440,12 @@ class StudentHub(BorderlessWindow):
                 on_failure(error)
             self.error(error)
 
-        self.jobs.submit(operation, done, failed)
+        from app.database.provenance import write_source
+        reference=self.source_reference.text().strip()
+        def work():
+            with write_source(reference):
+                return operation()
+        self.jobs.submit(work, done, failed)
 
     def refresh_all(self):
         self.reload_data()

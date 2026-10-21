@@ -3,8 +3,8 @@ from app.calculator.period_calculator import PeriodCalculator
 
 
 def example():
-    policy = dict(offering_id='O', midterm_period_id='M', final_period_id='F', midterm_weight=40, final_weight=60)
-    weights = [dict(period_id=p, percentage_id=c, weight=w)
+    policy = dict(class_id='O', midterm_period_id='M', final_period_id='F', midterm_weight=40, final_weight=60)
+    weights = [dict(component_id=p+c, percentage=w)
                for p in ['M', 'F'] for c, w in [('Q', 20), ('L', 30), ('E', 50)]]
     components = [dict(component_id=p+c, name=p+c, period_id=p, percentage_id=c, max_score=50)
                   for p in ['M', 'F'] for c in ['Q', 'L', 'E']]
@@ -28,7 +28,7 @@ def test_invalid_configuration_and_evidence(case):
     policy, weights, components, scores = example()
     if case == 'missing': scores.pop()
     if case == 'range': scores[0]['score'] = 51
-    if case == 'total': weights[0]['weight'] = 21
+    if case == 'total': weights[0]['percentage'] = 21
     if case == 'duplicate': weights.append(dict(weights[0]))
     if case == 'nonfinite': scores[0]['score'] = float('nan')
     if case == 'same_period': policy['final_period_id'] = 'M'

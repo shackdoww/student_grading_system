@@ -203,11 +203,11 @@ class DataRecordsPage(QWidget):
         heading = QLabel('Data records')
         heading.setObjectName('pageTitle')
         root.addWidget(heading)
-        hint = QLabel('Admin only. Delete grades and scores before enrollments, then dependent configuration before master records. No automatic cascades or backups.')
+        hint = QLabel('Admin only. Delete grade and scores before enrollment, then dependent configuration before master records. No automatic cascades or backups.')
         hint.setWordWrap(True)
         root.addWidget(hint)
         self.kind = QComboBox()
-        for name in ['period_grade_results', 'grades', 'grade_component_scores', 'enrollments', 'students', 'grading_policies', 'grade_components', 'grade_percentages', 'class_offerings', 'grading_periods', 'subjects', 'teachers']:
+        for name in ['grade', 'grade_component_score', 'enrollment', 'student', 'grading_policy', 'grade_component', 'grade_percentage', 'class', 'grading_period', 'subject', 'teacher']:
             self.kind.addItem(name.replace('_', ' ').title(), name)
         self.kind.currentIndexChanged.connect(self.refresh)
         root.addWidget(self.kind)
@@ -232,6 +232,7 @@ class DataRecordsPage(QWidget):
         root.addWidget(self.delete_button)
         self.rows = []
         self._dataset = None
+        self.refresh()
 
     def checked_keys(self):
         return [self.list.item(row, 0).data(Qt.UserRole)
@@ -283,7 +284,7 @@ class DataRecordsPage(QWidget):
         if not keys:
             return
         name = self.kind.currentData()
-        related = '\nThis also removes the policy’s category-weight configuration.' if name == 'grading_policies' else ''
+        related = '\nThis also removes the policy’s component-weight assignments.' if name == 'grading_policy' else ''
         confirmation = QMessageBox(self)
         confirmation.setWindowTitle('Permanent batch deletion')
         confirmation.setIcon(QMessageBox.Warning)

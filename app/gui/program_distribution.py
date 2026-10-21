@@ -34,7 +34,7 @@ class ProgramDistribution(QWidget):
         counts = program_counts(students)
         total = sum(count for _, count in counts)
         if not counts:
-            label = QLabel('Program breakdown appears when students are loaded.')
+            label = QLabel('Program breakdown appears when student are loaded.')
             label.setObjectName('subtitle')
             label.setWordWrap(True)
             self.root.addWidget(label)

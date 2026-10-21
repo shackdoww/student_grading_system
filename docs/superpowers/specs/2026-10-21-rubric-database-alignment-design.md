@@ -1,7 +1,7 @@
 # Rubric database alignment design
 
 Date: 2026-10-21
-Status: Approved by the owner on 2026-10-21; implementation planning in progress.
+Status: Approved by the owner on 2026-10-21; implementation complete, awaiting final verification/review.
 Baseline: GitHub main, 6242e258c8725c4eb2706a68d158d36ced129d6e.
 Source: CSPC 103 Finals Project — CRUD Test Case Scenarios (100 pts), including its final-table appendix.
 
@@ -117,3 +117,13 @@ The rubric is an acceptance scenario, not a requirement that every user's live d
 The appendix's Set by narrative is implemented as requested provenance, not a claim that the instructor explicitly required such a physical column. Exact surrogate ID values are not an acceptance condition because the document expressly permits differences. Manual demonstration and physical printer checks cannot be claimed from automated tests alone.
 
 Implementation is complete only after PostgreSQL-backed acceptance, migration, authorization and GUI regression checks pass and the repository documentation reflects the final schema and commands. No push or modification of an external school database is included without a further instruction.
+
+## Owner amendment: selectable schedules
+
+During implementation the owner requested selectable weekdays/times and conflict
+prevention. Class editors now use day checkboxes and AM/PM time controls, with
+multiple meeting blocks. `class_meeting` stores normalized meetings; `class.schedule`
+retains the required rubric display. Conflicts are checked for teacher, normalized
+room and active enrolled student within the same term; adjacency is allowed.
+Section labels alone do not establish a shared cohort. Existing ambiguous legacy
+text is preserved and identified for explicit review; times are never guessed.

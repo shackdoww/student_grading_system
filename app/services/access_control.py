@@ -2,10 +2,10 @@
 
 
 PERMISSIONS = {
-    'admin': {'students', 'enrollments', 'academic', 'grading', 'scores', 'grades', 'import', 'delete', 'accounts'},
+    'admin': {'student', 'enrollment', 'academic', 'grading', 'scores', 'grade', 'import', 'delete', 'accounts'},
     'dean': {'academic', 'grading'},
-    'teacher': {'grading', 'scores', 'grades'},
-    'registrar': {'students', 'enrollments'},
+    'teacher': {'grading', 'scores', 'grade'},
+    'registrar': {'student', 'enrollment'},
 }
 
 
@@ -18,29 +18,24 @@ def scope_snapshot(snapshot, account):
     if account['role'] == 'admin':
         return snapshot
     records = snapshot.records()
-    records['grade_audit_log'] = []
+    records['audit_log'] = []
     if account['role'] != 'teacher':
         return DataSnapshot(records)
-    offerings = [r for r in records['class_offerings'] if r['teacher_id'] == account['teacher_id']]
-    oids = {r['offering_id'] for r in offerings}
-    enrollments = [r for r in records['enrollments'] if r['offering_id'] in oids]
+    offerings = [r for r in records['class'] if r['teacher_id'] == account['teacher_id']]
+    oids = {r['class_id'] for r in offerings}
+    enrollments = [r for r in records['enrollment'] if r['class_id'] in oids]
     eids = {r['enrollment_id'] for r in enrollments}
     sids = {r['student_id'] for r in enrollments}
     subject_ids = {r['subject_id'] for r in offerings}
-    records['class_offerings'] = offerings
-    records['enrollments'] = enrollments
-    records['students'] = [r for r in records['students'] if r['student_id'] in sids]
-    records['teachers'] = [r for r in records['teachers'] if r['teacher_id'] == account['teacher_id']]
-    records['subjects'] = [r for r in records['subjects'] if r['subject_id'] in subject_ids]
-    records['grade_percentages'] = [r for r in records['grade_percentages'] if r['offering_id'] in oids]
-    pids = {r['percentage_id'] for r in records['grade_percentages']}
-    records['grade_components'] = [r for r in records['grade_components'] if r['percentage_id'] in pids]
-    cids = {r['component_id'] for r in records['grade_components']}
-    records['grade_component_scores'] = [r for r in records['grade_component_scores'] if r['enrollment_id'] in eids and r['component_id'] in cids]
-    for name in ['grades', 'period_grade_results']:
-        records[name] = [r for r in records[name] if r['enrollment_id'] in eids]
-    for name in ['grading_policies', 'period_category_weights']:
-        records[name] = [r for r in records[name] if r['offering_id'] in oids]
+    records['class'] = offerings
+    records['enrollment'] = enrollments
+    records['student'] = [r for r in records['student'] if r['student_id'] in sids]
+    records['teacher'] = [r for r in records['teacher'] if r['teacher_id'] == account['teacher_id']]
+    records['subject'] = [r for r in records['subject'] if r['subject_id'] in subject_ids]
+    records['grade_percentage'] = [r for r in records['grade_percentage'] if r['class_id'] in oids]
+    records['grade_component_score']=[r for r in records['grade_component_score'] if r['enrollment_id'] in eids]
+    records['grade']=[r for r in records['grade'] if r['enrollment_id'] in eids]
+    records['grading_policy']=[r for r in records['grading_policy'] if r['class_id'] in oids]
     return DataSnapshot(records)
 
 
@@ -57,10 +52,9 @@ class AccessGuard:
                 raise PermissionError('A class assignment is required.')
             kind, identifier, *options = resource
             queries = {
-                'offering': 'SELECT teacher_id FROM class_offerings WHERE offering_id=%s',
-                'enrollment': 'SELECT o.teacher_id FROM enrollments e JOIN class_offerings o ON e.offering_id=o.offering_id WHERE e.enrollment_id=%s',
-                'percentage': 'SELECT o.teacher_id FROM grade_percentages p JOIN class_offerings o ON p.offering_id=o.offering_id WHERE p.percentage_id=%s',
-                'component': 'SELECT o.teacher_id FROM grade_components c JOIN grade_percentages p ON c.percentage_id=p.percentage_id JOIN class_offerings o ON p.offering_id=o.offering_id WHERE c.component_id=%s',
+                'offering': 'SELECT teacher_id FROM class WHERE class_id=%s',
+                'enrollment': 'SELECT o.teacher_id FROM enrollment e JOIN class o ON e.class_id=o.class_id WHERE e.enrollment_id=%s',
+                'percentage': 'SELECT o.teacher_id FROM grade_percentage p JOIN class o ON p.class_id=o.class_id WHERE p.percentage_id=%s',
             }
             with self.auth.connect() as connection:
                 row = connection.execute(queries[kind], (identifier,)).fetchone()
@@ -72,16 +66,14 @@ class AccessGuard:
 
 
 RULES = {
-    'save': ('students', None), 'create': ('students', None), 'enroll': ('enrollments', None),
-    'update_status': ('enrollments', None),
+    'save': ('student', None), 'create': ('student', None), 'enroll': ('enrollment', None),
+    'update_status': ('enrollment', None),
     'record_score': ('scores', lambda args, kw: ('enrollment', args[1])),
-    'calculate_and_save_grade': ('grades', lambda args, kw: ('enrollment', args[0])),
-    'calculate_and_save': ('grades', lambda args, kw: ('enrollment', args[0])),
-    'save_policy': ('grading', lambda args, kw: ('offering', args[0]['offering_id'])),
-    'save_teacher': ('academic', None), 'save_subject': ('academic', None),
+    'calculate_and_save': ('grade', lambda args, kw: ('enrollment', args[0])),
+    'save_policy': ('grading', lambda args, kw: ('offering', args[0]['class_id'])),
+    'save_teacher': ('academic', None), 'create_teacher': ('academic', None), 'save_subject': ('academic', None),
     'save_offering': ('academic', None), 'save_period': ('academic', None),
-    'save_percentage': ('grading', lambda args, kw: ('offering', args[2])),
-    'save_component': ('grading', lambda args, kw: ('percentage', args[6])),
+    'save_component': ('academic', None),
     'delete_unreferenced': ('delete', None), 'import_all': ('import', None),
 }
 
@@ -96,13 +88,13 @@ class SecuredService:
             raise PermissionError('This operation is not exposed to signed-in users.')
         action, target = self._rules[name]
         def call(*args, **kwargs):
+            from app.database.provenance import source_reference
+            reference = kwargs.pop('source_reference', None)
+            if reference is None:
+                reference = source_reference()
             account = self._guard.require(action, target(args, kwargs) if target else None)
-            if name in ['save_component', 'save_percentage']:
-                # An upsert must authorize the existing owner as well as the
-                # proposed destination, or a guessed ID could move another class's record.
-                kind = 'component' if name == 'save_component' else 'percentage'
-                self._guard.require(action, (kind, args[0], True))
             from app.database.connection import audit_actor
-            with audit_actor(account['username']):
+            from app.database.provenance import write_source
+            with audit_actor(account['username']), write_source(reference):
                 return getattr(self._service, name)(*args, **kwargs)
         return call

@@ -41,12 +41,12 @@
 - Domain IDs stay VARCHAR(50), with UUID-based database defaults for new internal IDs; supplied legacy IDs are preserved. Student numbers and teacher IDs remain explicit.
 - `grade` includes nullable partial result fields, `finals_equiv`, `date_encoded` and provenance. `grading_policy` stores class_id, selected periods and overall weights. `schema_version` identifies the installed canonical version.
 
-- [ ] Add failing PostgreSQL tests asserting all required columns/relationships; six components assigned independently to two classes; uniqueness of class/component, enrollment/component and enrollment/grade.
-- [ ] Add failing tests for null optional emails, blank identifiers/names, invalid dates/year/units, NaN/Infinity, score ranges, wrong class/period assignments and restrictive parent deletions.
-- [ ] Add deferred-total tests: save 30/30/40 atomically; reject 20/30/40 at commit; keep previous weights and audit rows unchanged after rollback. Reject a policy referencing incompatible terms and reject component definition changes invalidating existing data.
-- [ ] Run `QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest tests/test_rubric_schema.py tests/test_provenance.py -q` against an isolated PostgreSQL instance and record the expected baseline failures.
-- [ ] Implement canonical DDL, indexes and database validation/audit/provenance triggers. Use explicit inserts, stable primary keys, ordered unique Set by references, no-op update detection and timestamps from PostgreSQL. Deletion audit records survive parent deletion.
-- [ ] Run the same tests to PASS, including forged actor fields being replaced by the trusted connection context on application writes and identical-value updates not emitting false changes. Commit the milestone.
+- [x] Add failing PostgreSQL tests asserting all required columns/relationships; six components assigned independently to two classes; uniqueness of class/component, enrollment/component and enrollment/grade.
+- [x] Add failing tests for null optional emails, blank identifiers/names, invalid dates/year/units, NaN/Infinity, score ranges, wrong class/period assignments and restrictive parent deletions.
+- [x] Add deferred-total tests: save 30/30/40 atomically; reject 20/30/40 at commit; keep previous weights and audit rows unchanged after rollback. Reject a policy referencing incompatible terms and reject component definition changes invalidating existing data.
+- [x] Run `QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest tests/test_rubric_schema.py tests/test_provenance.py -q` against an isolated PostgreSQL instance and record the expected baseline failures.
+- [x] Implement canonical DDL, indexes and database validation/audit/provenance triggers. Use explicit inserts, stable primary keys, ordered unique Set by references, no-op update detection and timestamps from PostgreSQL. Deletion audit records survive parent deletion.
+- [x] Run the same tests to PASS, including forged actor fields being replaced by the trusted connection context on application writes and identical-value updates not emitting false changes. Commit the milestone.
 
 ### Task 2: Safe fresh install and legacy migration
 
@@ -58,12 +58,12 @@
 - CLI retains `--all`, adds `--preflight` and routes canonical reruns to a no-op; deprecated flags explain that the unified installer is now used rather than executing old migrations against new tables.
 - Archive name derives from the target schema and version, and old-to-new mappings are retained. Account/session/security tables remain usable with teacher references rewired transactionally.
 
-- [ ] Add failing tests for fresh install, repeat install, migration-004 empty/populated schemas and unknown schema rejection. Verify IDs, timestamps, accounts, raw scores and original archived rows.
-- [ ] Add conversion tests for one component per category, exact finite division for multiple components and rejected nonrepresentable division. Compare computed percentages and grade points before/after every convertible complete legacy enrollment.
-- [ ] Add rollback tests for an injected failure and for incompatible period/category data. Assert no partially migrated canonical schema, changed academic records or fabricated historical provenance.
-- [ ] Run `... pytest tests/test_rubric_migration.py -q` and observe failures before implementation.
-- [ ] Implement version dispatch, preflight, locked transactional archive/conversion and sequence/default initialization. Use archive schema qualification in all legacy reads. Preserve old audit entries; legacy grades lacking period data remain archived and active reports require recomputation.
-- [ ] Run migration tests to PASS and repeat `--all` successfully. Commit the milestone.
+- [x] Add failing tests for fresh install, repeat install, migration-004 empty/populated schemas and unknown schema rejection. Verify IDs, timestamps, accounts, raw scores and original archived rows.
+- [x] Add conversion tests for one component per category, exact finite division for multiple components and rejected nonrepresentable division. Compare computed percentages and grade points before/after every convertible complete legacy enrollment.
+- [x] Add rollback tests for an injected failure and for incompatible period/category data. Assert no partially migrated canonical schema, changed academic records or fabricated historical provenance.
+- [x] Run `... pytest tests/test_rubric_migration.py -q` and observe failures before implementation.
+- [x] Implement version dispatch, preflight, locked transactional archive/conversion and sequence/default initialization. Use archive schema qualification in all legacy reads. Preserve old audit entries; legacy grades lacking period data remain archived and active reports require recomputation.
+- [x] Run migration tests to PASS and repeat `--all` successfully. Commit the milestone.
 
 ### Task 3: Canonical repositories, grading and authorization
 
@@ -77,12 +77,12 @@
 - `SecuredService` accepts optional `source_reference` on exposed writes, establishes `write_source` and trusted actor contexts, and does not pass actor identity supplied by the user. Service calls within these contexts inherit provenance.
 - Keep master-record tuple presentation adapters stable where harmless; use explicit named mappings for component/weight/result relationships. Domain field names are class_id/finals_grade throughout persistence.
 
-- [ ] Add failing service tests for exact initial and recalculated CSPC results, PATHFIT reuse without extra components, score correction preserving row ID, deletion/re-entry, full/partial grade uniqueness and missing-score failures.
-- [ ] Add tests for concurrent duplicate student/enrollment attempts and clear validation errors. Add provenance accumulation and signed-in audit attribution for scores, policy edits, grade saves, imports and batch deletion.
-- [ ] Add role tests: Admin/Dean maintain shared definitions; Teacher can assign existing components and edit weights/scores/results only for assigned classes; Registrar cannot change grades. Reassignment and guessed foreign IDs cannot bypass scope.
-- [ ] Run targeted service/calculator/account/enrollment/deletion tests to confirm the old contracts fail the new requirements.
-- [ ] Implement new repository SQL, services, Decimal calculation, partial results, protected dependencies and authorization. Reject shared-definition edits that invalidate any assignment or score. Serialize policy/result changes and retain existing error/rollback guarantees.
-- [ ] Run targeted tests to PASS plus schema/migration tests. Commit the milestone.
+- [x] Add failing service tests for exact initial and recalculated CSPC results, PATHFIT reuse without extra components, score correction preserving row ID, deletion/re-entry, full/partial grade uniqueness and missing-score failures.
+- [x] Add tests for concurrent duplicate student/enrollment attempts and clear validation errors. Add provenance accumulation and signed-in audit attribution for scores, policy edits, grade saves, imports and batch deletion.
+- [x] Add role tests: Admin/Dean maintain shared definitions; Teacher can assign existing components and edit weights/scores/results only for assigned classes; Registrar cannot change grades. Reassignment and guessed foreign IDs cannot bypass scope.
+- [x] Run targeted service/calculator/account/enrollment/deletion tests to confirm the old contracts fail the new requirements.
+- [x] Implement new repository SQL, services, Decimal calculation, partial results, protected dependencies and authorization. Reject shared-definition edits that invalidate any assignment or score. Serialize policy/result changes and retain existing error/rollback guarantees.
+- [x] Run targeted tests to PASS plus schema/migration tests. Commit the milestone.
 
 ### Task 4: Desktop editors, snapshots, reports and provenance inspection
 
@@ -94,12 +94,12 @@
 - Dialogs and write actions supply source_reference; Data Records/record inspection displays stored Set by and actor/timestamp fields without altering the required report column layouts.
 - Grade actions expose Compute/Save Midterm and Save Grades against one service/store; missing Finals does not prevent Midterm-only saving. Changed or partial results cannot appear as completed FG values.
 
-- [ ] Add failing GUI tests for shared component selection, per-class independent weights, source entry, read-only actor inspection and role-disabled shared-definition edits.
-- [ ] Add report tests for exact headers/column order, Juan/Ana/Pedro name order, updated department/schedule/room, final grade points and Juan's 5-unit/2-subject/2.05 GWA.
-- [ ] Add threshold tests where rounded percentages match but grade points differ, stale policy changes, incomplete scores, null partial results and empty reports.
-- [ ] Run `QT_QPA_PLATFORM=offscreen ... pytest tests/test_rubric_ui.py tests/test_checklist_ui.py tests/test_ui_loading.py -q` and observe failures before edits.
-- [ ] Update snapshots, scoped data, editors, actions, permission labels and record inspection. Preserve async writes/reloads, selection, reduced motion, export and print behavior.
-- [ ] Run GUI/report/loading/output tests to PASS and commit the milestone.
+- [x] Add failing GUI tests for shared component selection, per-class independent weights, source entry, read-only actor inspection and role-disabled shared-definition edits.
+- [x] Add report tests for exact headers/column order, Juan/Ana/Pedro name order, updated department/schedule/room, final grade points and Juan's 5-unit/2-subject/2.05 GWA.
+- [x] Add threshold tests where rounded percentages match but grade points differ, stale policy changes, incomplete scores, null partial results and empty reports.
+- [x] Run `QT_QPA_PLATFORM=offscreen ... pytest tests/test_rubric_ui.py tests/test_checklist_ui.py tests/test_ui_loading.py -q` and observe failures before edits.
+- [x] Update snapshots, scoped data, editors, actions, permission labels and record inspection. Preserve async writes/reloads, selection, reduced motion, export and print behavior.
+- [x] Run GUI/report/loading/output tests to PASS and commit the milestone.
 
 ### Task 5: CSV compatibility and removal of superseded functions
 
@@ -110,11 +110,11 @@
 - Detect legacy-format headers, normalize through the same conversion rules as migration, and reject incompatible conversions before writes. Optional blank text/email fields become null where appropriate. One transaction includes all writes/audit/provenance.
 - Remove `GradingService`, old GradeRepository, `calculate_and_save_grade`, legacy calculator `calculate`/`calculate_breakdown`, snapshot legacy grade branches, Save Legacy Grade/save_grade, and active period_category_weights/period_grade_results paths. Keep only the grade-point scale in GradeCalculator.
 
-- [ ] Add failing canonical round-trip import tests, blank optional email/year handling, NaN/Infinity rejection, uniqueness and foreign-key checks, invalid policy rollback and source attribution.
-- [ ] Add legacy-format conversion success/rejection tests and an integration check that the documented bundled dataset imports into an isolated schema without changing computed results.
-- [ ] Add cleanup tests that production imports/call sites do not reference removed services, handlers, legacy result tables or old calculator methods; explicitly exclude migration fixtures/archive conversion from that ban.
-- [ ] Run import and cleanup tests, implement canonical import normalization/validation, update sample files/documentation and remove obsolete code only after replacement tests pass.
-- [ ] Run affected tests and `rg` reference checks to confirm no dangling production references. Commit the milestone.
+- [x] Add failing canonical round-trip import tests, blank optional email/year handling, NaN/Infinity rejection, uniqueness and foreign-key checks, invalid policy rollback and source attribution.
+- [x] Add legacy-format conversion success/rejection tests and an integration check that the documented bundled dataset imports into an isolated schema without changing computed results.
+- [x] Add cleanup tests that production imports/call sites do not reference removed services, handlers, legacy result tables or old calculator methods; explicitly exclude migration fixtures/archive conversion from that ban.
+- [x] Run import and cleanup tests, implement canonical import normalization/validation, update sample files/documentation and remove obsolete code only after replacement tests pass.
+- [x] Run affected tests and `rg` reference checks to confirm no dangling production references. Commit the milestone.
 
 ### Task 6: Full appendix acceptance, restart evidence and documentation
 
@@ -125,14 +125,30 @@
 - `tests.rubric_comparison.compare(connection) -> dict` returns per-table expected/actual counts and field discrepancies; the acceptance run writes a JSON report to an explicit artifact path outside tracked school data.
 - Restart probe uses the same committed isolated schema and the real GUI/snapshot/report code in a second process.
 
-- [ ] Implement fixture expectations and execute all 52 cases via production services/secured boundaries with actual source references. Assert every intermediate rejection/update/deletion and unchanged raw scores after recalculation. GUI tests cover the dialogs and confirmation/cancel boundaries.
-- [ ] Compare all final tables, provenance, null fields, forbidden records, grade values and audit transitions. Verify accounts/security/policy metadata is separate from rubric row counts. Confirm actor values come from real disposable authenticated accounts.
-- [ ] Launch a second GUI process, reload records and assert the saved Grade Sheet and Student Grade outputs. Persist the machine-readable comparison artifact.
-- [ ] Run the full suite with PostgreSQL enabled: `QT_QPA_PLATFORM=offscreen CHECKLIST_TEST_DSN=<isolated-test-dsn> .venv/bin/python -m pytest -q`. All tests must pass; opt-in DB tests must run rather than skip.
-- [ ] Run the retained standalone integration probes against a disposable test database, `python -m compileall -q app tests`, `git diff --check`, and scan for active old-model references. Resolve regressions before completion.
-- [ ] Update installation/migration/preflight commands, schema descriptions, provenance behavior, class assignment/grade actions, CSV compatibility, deletion ordering and rubric evidence. Distinguish automated evidence from remaining live keyboard/mouse and physical-printer checks.
-- [ ] Review the final diff against every approved spec section, record limitations/evidence, commit the tested work and report the local branch/commit and comparison artifact. Do not push automatically.
+- [x] Implement fixture expectations and execute all 52 cases via production services/secured boundaries with actual source references. Assert every intermediate rejection/update/deletion and unchanged raw scores after recalculation. GUI tests cover the dialogs and confirmation/cancel boundaries.
+- [x] Compare all final tables, provenance, null fields, forbidden records, grade values and audit transitions. Verify accounts/security/policy metadata is separate from rubric row counts. Confirm actor values come from real disposable authenticated accounts.
+- [x] Launch a second GUI process, reload records and assert the saved Grade Sheet and Student Grade outputs. Persist the machine-readable comparison artifact.
+- [x] Run the full suite with PostgreSQL enabled: `QT_QPA_PLATFORM=offscreen CHECKLIST_TEST_DSN=<isolated-test-dsn> .venv/bin/python -m pytest -q`. All tests must pass; opt-in DB tests must run rather than skip.
+- [x] Run the retained standalone integration probes against a disposable test database, `python -m compileall -q app tests`, `git diff --check`, and scan for active old-model references. Resolve regressions before completion.
+- [x] Update installation/migration/preflight commands, schema descriptions, provenance behavior, class assignment/grade actions, CSV compatibility, deletion ordering and rubric evidence. Distinguish automated evidence from remaining live keyboard/mouse and physical-printer checks.
+- [x] Review the final diff against every approved spec section, record limitations/evidence, commit the tested work and report the local branch/commit and comparison artifact. Do not push automatically.
 
 ## Execution handoff
 
-Recommended execution: Native, implementing this plan in the current session. The schema, migration, services and GUI contracts are tightly coupled; a single implementer keeps those changes coordinated. Use the approved design plus this plan, and the worktree/TDD/execution/review skills at the appropriate gates. Obtain the owner's plan review and execution-method choice before application changes.
+Recommended execution: Native, implementing this plan in the current session. The schema, migration, services and GUI contracts are tightly coupled; a single implementer keeps those changes coordinated. Use the approved design plus this plan, and the worktree/TDD/execution/review skills at the appropriate gates. The owner approved native execution with “Go.”
+
+## Execution amendment and evidence
+
+The owner additionally requested selectable schedule days/times and prevention of
+conflicts. Added `app/services/scheduling.py`, `app/gui/schedule_editor.py`,
+normalized `class_meeting`, deferred database conflict checks, and scheduling/import
+regressions. Existing text schedules require explicit time review.
+
+Old standalone verification scripts were removed once their behavior was covered
+by the PostgreSQL acceptance/role/migration/UI tests. The bundled CSVs remain an
+explicitly documented legacy compatibility fixture; the canonical importer and
+original-data archive preserve their values.
+
+Verification before final review: 120 tests passed with PostgreSQL 17 enabled,
+including all 52 rubric cases and a fresh GUI-process restart. Final review and
+any resulting fixes are recorded in the branch history and completion report.

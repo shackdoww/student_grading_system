@@ -9,7 +9,7 @@ class GradingPeriodRepository:
         try:
             cursor.execute("""
                 SELECT period_id, name, start_date, end_date, school_year, semester, period_order
-                FROM grading_periods ORDER BY period_order, start_date
+                FROM grading_period ORDER BY period_order, start_date
             """)
             return cursor.fetchall()
         finally:
@@ -22,7 +22,7 @@ class GradingPeriodRepository:
         try:
             cursor.execute("""
                 SELECT period_id, name, start_date, end_date, school_year, semester, period_order
-                FROM grading_periods WHERE period_id = %s
+                FROM grading_period WHERE period_id = %s
             """, (period_id,))
             return cursor.fetchone()
         finally:
@@ -34,7 +34,7 @@ class GradingPeriodRepository:
         cursor = connection.cursor()
         try:
             cursor.execute("""
-                INSERT INTO grading_periods
+                INSERT INTO grading_period
                     (period_id, name, start_date, end_date, school_year, semester, period_order)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (period_id) DO UPDATE SET
@@ -58,7 +58,7 @@ class GradingPeriodRepository:
         cursor = connection.cursor()
         try:
             cursor.execute(
-                "DELETE FROM grading_periods WHERE period_id = %s",
+                "DELETE FROM grading_period WHERE period_id = %s",
                 (period_id,)
             )
             deleted = cursor.rowcount > 0

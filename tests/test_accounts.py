@@ -19,8 +19,8 @@ def test_password_hashes_are_salted_and_verified():
 @pytest.mark.parametrize('role,action,expected', [
     ('admin', 'delete', True), ('dean', 'academic', True), ('dean', 'scores', False),
     ('teacher', 'scores', True), ('teacher', 'accounts', False),
-    ('registrar', 'enrollments', True), ('registrar', 'grades', False),
-    ('unknown', 'students', False)])
+    ('registrar', 'enrollment', True), ('registrar', 'grade', False),
+    ('unknown', 'student', False)])
 def test_role_matrix_denies_unlisted_permissions(role, action, expected):
     assert allowed(role, action) is expected
 
@@ -66,9 +66,9 @@ def test_non_admin_snapshot_does_not_expose_grade_audit(role):
     from app.services.access_control import scope_snapshot
     snapshot=DataSnapshot()
     records=snapshot.records()
-    records['grade_audit_log']=[dict(log_id=1,old_value={'score':57},new_value={'score':75})]
+    records['audit_log']=[dict(log_id=1,old_value={'score':57},new_value={'score':75})]
     scoped=scope_snapshot(DataSnapshot(records),dict(role=role,teacher_id='T'))
-    assert scoped.records()['grade_audit_log'] == []
+    assert scoped.records()['audit_log'] == []
 
 
 def test_unauthenticated_window_is_not_constructed():

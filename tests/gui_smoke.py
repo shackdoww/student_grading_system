@@ -59,14 +59,14 @@ def main():
                 QTest.qWait(260)
             window.grab().save(sys.argv[1])
         headers, rows = table_data(window.dashboard.student_table)
-        write_csv(Path(folder) / 'students.csv', headers, rows)
+        write_csv(Path(folder) / 'student.csv', headers, rows)
         document = QTextDocument()
         document.setHtml(report_html('Students', headers, rows))
         printer = QPrinter()
         printer.setOutputFormat(QPrinter.PdfFormat)
-        printer.setOutputFileName(str(Path(folder) / 'students.pdf'))
+        printer.setOutputFileName(str(Path(folder) / 'student.pdf'))
         document.print_(printer)
-        assert (Path(folder) / 'students.pdf').stat().st_size > 500
+        assert (Path(folder) / 'student.pdf').stat().st_size > 500
         for dialog in (StudentDialog(window), ScoreDialog(window, 'smoke', [])):
             dialog.show()
             app.processEvents()

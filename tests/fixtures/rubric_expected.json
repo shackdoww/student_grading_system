@@ -1,0 +1,611 @@
+{
+  "student": {
+    "key": [
+      "student_id"
+    ],
+    "rows": [
+      {
+        "student_id": "2026-0001",
+        "first_name": "Juan",
+        "last_name": "Dela Cruz",
+        "email": null,
+        "program": "BSCS",
+        "year_level": 2,
+        "status": "Active",
+        "set_by": "ST-01"
+      },
+      {
+        "student_id": "2026-0002",
+        "first_name": "Pedro",
+        "last_name": "Reyes",
+        "email": null,
+        "program": "BSCS",
+        "year_level": 2,
+        "status": "Active",
+        "set_by": "ST-01"
+      },
+      {
+        "student_id": "2026-0003",
+        "first_name": "Ana",
+        "last_name": "Garcia",
+        "email": null,
+        "program": "BSCS",
+        "year_level": 2,
+        "status": "Active",
+        "set_by": "ST-01; ST-05"
+      },
+      {
+        "student_id": "2026-0098",
+        "first_name": "Carlo",
+        "last_name": "Mendoza",
+        "email": null,
+        "program": "BSIT",
+        "year_level": 1,
+        "status": "Active",
+        "set_by": "EN-06"
+      },
+      {
+        "student_id": "2026-0004",
+        "first_name": "Kevin",
+        "last_name": "O'Brien",
+        "email": null,
+        "program": "BSIT",
+        "year_level": 1,
+        "status": "Active",
+        "set_by": "PS-02"
+      }
+    ]
+  },
+  "teacher": {
+    "key": [
+      "teacher_id"
+    ],
+    "rows": [
+      {
+        "teacher_id": "T-1001",
+        "first_name": "Maria",
+        "last_name": "Santos",
+        "email": null,
+        "department": "Information Technology Department",
+        "status": "Active",
+        "set_by": "TE-01; TE-04"
+      },
+      {
+        "teacher_id": "T-1002",
+        "first_name": "Jose",
+        "last_name": "Ramos",
+        "email": null,
+        "department": "Physical Education Department",
+        "status": "Active",
+        "set_by": "Report setup"
+      }
+    ]
+  },
+  "subject": {
+    "key": [
+      "subject_code"
+    ],
+    "rows": [
+      {
+        "subject_code": "CSPC 103",
+        "subject_name": "Object Oriented Programming",
+        "description": "Object-oriented analysis, design and programming in Java",
+        "units": 3,
+        "set_by": "SU-01; SU-04"
+      },
+      {
+        "subject_code": "PATHFIT 3",
+        "subject_name": "Physical Activity Towards Health and Fitness 3",
+        "description": null,
+        "units": 2,
+        "set_by": "Report setup"
+      }
+    ]
+  },
+  "class": {
+    "key": [
+      "class_code"
+    ],
+    "rows": [
+      {
+        "class_code": "CSPC103-A",
+        "subject_code": "CSPC 103",
+        "teacher_id": "T-1001",
+        "section": "A",
+        "school_year": "2026-2027",
+        "semester": "1st",
+        "schedule": "TTh 1:00–2:30",
+        "room": "CS-202",
+        "set_by": "CL-01; CL-04"
+      },
+      {
+        "class_code": "PATHFIT3-A",
+        "subject_code": "PATHFIT 3",
+        "teacher_id": "T-1002",
+        "section": "A",
+        "school_year": "2026-2027",
+        "semester": "1st",
+        "schedule": "TTh 3:00–5:00",
+        "room": "Gym",
+        "set_by": "Report setup"
+      }
+    ]
+  },
+  "enrollment": {
+    "key": [
+      "student_id",
+      "class_code"
+    ],
+    "rows": [
+      {
+        "student_id": "2026-0001",
+        "class_code": "CSPC103-A",
+        "enroll_date": "$test_date",
+        "status": "Enrolled",
+        "set_by": "EN-01"
+      },
+      {
+        "student_id": "2026-0002",
+        "class_code": "CSPC103-A",
+        "enroll_date": "$test_date",
+        "status": "Enrolled",
+        "set_by": "EN-01; EN-05"
+      },
+      {
+        "student_id": "2026-0003",
+        "class_code": "CSPC103-A",
+        "enroll_date": "$test_date",
+        "status": "Enrolled",
+        "set_by": "EN-01"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "PATHFIT3-A",
+        "enroll_date": "$test_date",
+        "status": "Enrolled",
+        "set_by": "Report setup"
+      }
+    ]
+  },
+  "grading_period": {
+    "key": [
+      "name"
+    ],
+    "rows": [
+      {
+        "name": "Midterm",
+        "period_order": 1,
+        "start_date": "2026-01-01",
+        "end_date": "2026-05-31",
+        "school_year": "2026-2027",
+        "semester": "1st",
+        "set_by": "GP-01"
+      },
+      {
+        "name": "Finals",
+        "period_order": 2,
+        "start_date": "2026-06-01",
+        "end_date": "2026-10-31",
+        "school_year": "2026-2027",
+        "semester": "1st",
+        "set_by": "GP-01"
+      }
+    ]
+  },
+  "grade_component": {
+    "key": [
+      "name"
+    ],
+    "rows": [
+      {
+        "name": "Midterm Quiz",
+        "period_name": "Midterm",
+        "type": "Quiz",
+        "max_score": 50,
+        "description": null,
+        "set_by": "GC-01"
+      },
+      {
+        "name": "Midterm Laboratory/Project",
+        "period_name": "Midterm",
+        "type": "Laboratory",
+        "max_score": 100,
+        "description": null,
+        "set_by": "GC-01"
+      },
+      {
+        "name": "Midterm Examination",
+        "period_name": "Midterm",
+        "type": "Exam",
+        "max_score": 100,
+        "description": null,
+        "set_by": "GC-01"
+      },
+      {
+        "name": "Final Quiz",
+        "period_name": "Finals",
+        "type": "Quiz",
+        "max_score": 50,
+        "description": null,
+        "set_by": "GC-01"
+      },
+      {
+        "name": "Final Laboratory/Project",
+        "period_name": "Finals",
+        "type": "Laboratory",
+        "max_score": 100,
+        "description": null,
+        "set_by": "GC-01"
+      },
+      {
+        "name": "Final Examination",
+        "period_name": "Finals",
+        "type": "Exam",
+        "max_score": 100,
+        "description": null,
+        "set_by": "GC-01"
+      }
+    ]
+  },
+  "grade_percentage": {
+    "key": [
+      "class_code",
+      "component_name"
+    ],
+    "rows": [
+      {
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Quiz",
+        "percentage": 30,
+        "set_by": "GW-01; GR-03"
+      },
+      {
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Laboratory/Project",
+        "percentage": 30,
+        "set_by": "GW-01"
+      },
+      {
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Examination",
+        "percentage": 40,
+        "set_by": "GW-01; GR-03"
+      },
+      {
+        "class_code": "CSPC103-A",
+        "component_name": "Final Quiz",
+        "percentage": 20,
+        "set_by": "GW-01"
+      },
+      {
+        "class_code": "CSPC103-A",
+        "component_name": "Final Laboratory/Project",
+        "percentage": 30,
+        "set_by": "GW-01"
+      },
+      {
+        "class_code": "CSPC103-A",
+        "component_name": "Final Examination",
+        "percentage": 50,
+        "set_by": "GW-01"
+      },
+      {
+        "class_code": "PATHFIT3-A",
+        "component_name": "Midterm Quiz",
+        "percentage": 20,
+        "set_by": "Report setup"
+      },
+      {
+        "class_code": "PATHFIT3-A",
+        "component_name": "Midterm Laboratory/Project",
+        "percentage": 30,
+        "set_by": "Report setup"
+      },
+      {
+        "class_code": "PATHFIT3-A",
+        "component_name": "Midterm Examination",
+        "percentage": 50,
+        "set_by": "Report setup"
+      },
+      {
+        "class_code": "PATHFIT3-A",
+        "component_name": "Final Quiz",
+        "percentage": 20,
+        "set_by": "Report setup"
+      },
+      {
+        "class_code": "PATHFIT3-A",
+        "component_name": "Final Laboratory/Project",
+        "percentage": 30,
+        "set_by": "Report setup"
+      },
+      {
+        "class_code": "PATHFIT3-A",
+        "component_name": "Final Examination",
+        "percentage": 50,
+        "set_by": "Report setup"
+      }
+    ]
+  },
+  "grade_component_score": {
+    "key": [
+      "student_id",
+      "class_code",
+      "component_name"
+    ],
+    "rows": [
+      {
+        "student_id": "2026-0001",
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Quiz",
+        "score": 40,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Laboratory/Project",
+        "score": 90,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Examination",
+        "score": 75,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01; SC-06"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "CSPC103-A",
+        "component_name": "Final Quiz",
+        "score": 45,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "CSPC103-A",
+        "component_name": "Final Laboratory/Project",
+        "score": 85,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "CSPC103-A",
+        "component_name": "Final Examination",
+        "score": 80,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0002",
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Quiz",
+        "score": 20,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0002",
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Laboratory/Project",
+        "score": 60,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0002",
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Examination",
+        "score": 55,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0002",
+        "class_code": "CSPC103-A",
+        "component_name": "Final Quiz",
+        "score": 30,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0002",
+        "class_code": "CSPC103-A",
+        "component_name": "Final Laboratory/Project",
+        "score": 70,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0002",
+        "class_code": "CSPC103-A",
+        "component_name": "Final Examination",
+        "score": 65,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0003",
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Quiz",
+        "score": 50,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0003",
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Laboratory/Project",
+        "score": 100,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0003",
+        "class_code": "CSPC103-A",
+        "component_name": "Midterm Examination",
+        "score": 100,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0003",
+        "class_code": "CSPC103-A",
+        "component_name": "Final Quiz",
+        "score": 48,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-07"
+      },
+      {
+        "student_id": "2026-0003",
+        "class_code": "CSPC103-A",
+        "component_name": "Final Laboratory/Project",
+        "score": 95,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0003",
+        "class_code": "CSPC103-A",
+        "component_name": "Final Examination",
+        "score": 92,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "SC-01"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "PATHFIT3-A",
+        "component_name": "Midterm Quiz",
+        "score": 45,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "Report setup"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "PATHFIT3-A",
+        "component_name": "Midterm Laboratory/Project",
+        "score": 90,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "Report setup"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "PATHFIT3-A",
+        "component_name": "Midterm Examination",
+        "score": 90,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "Report setup"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "PATHFIT3-A",
+        "component_name": "Final Quiz",
+        "score": 45,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "Report setup"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "PATHFIT3-A",
+        "component_name": "Final Laboratory/Project",
+        "score": 90,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "Report setup"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "PATHFIT3-A",
+        "component_name": "Final Examination",
+        "score": 90,
+        "remarks": null,
+        "date_recorded": "$test_date",
+        "set_by": "Report setup"
+      }
+    ]
+  },
+  "grade": {
+    "key": [
+      "student_id",
+      "class_code"
+    ],
+    "rows": [
+      {
+        "student_id": "2026-0001",
+        "class_code": "CSPC103-A",
+        "midterm_grade": 81,
+        "finals_grade": 83.5,
+        "overall_grade": 82.5,
+        "midterm_equiv": 2.5,
+        "finals_equiv": 2.25,
+        "final_equiv": 2.25,
+        "remarks": "Passed",
+        "date_encoded": "$test_date"
+      },
+      {
+        "student_id": "2026-0002",
+        "class_code": "CSPC103-A",
+        "midterm_grade": 52,
+        "finals_grade": 65.5,
+        "overall_grade": 60.1,
+        "midterm_equiv": 5,
+        "finals_equiv": 5,
+        "final_equiv": 5,
+        "remarks": "Failed",
+        "date_encoded": "$test_date"
+      },
+      {
+        "student_id": "2026-0003",
+        "class_code": "CSPC103-A",
+        "midterm_grade": 100,
+        "finals_grade": 93.7,
+        "overall_grade": 96.22,
+        "midterm_equiv": 1,
+        "finals_equiv": 1.5,
+        "final_equiv": 1.25,
+        "remarks": "Passed",
+        "date_encoded": "$test_date"
+      },
+      {
+        "student_id": "2026-0001",
+        "class_code": "PATHFIT3-A",
+        "midterm_grade": 90,
+        "finals_grade": 90,
+        "overall_grade": 90,
+        "midterm_equiv": 1.75,
+        "finals_equiv": 1.75,
+        "final_equiv": 1.75,
+        "remarks": "Passed",
+        "date_encoded": "$test_date"
+      }
+    ]
+  }
+}

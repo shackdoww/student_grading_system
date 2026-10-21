@@ -31,11 +31,11 @@ class AcademicService:
     def get_periods(self):
         return self.periods.find_all()
 
-    def get_percentages(self, offering_id):
-        return self.percentages.find_by_offering_id(offering_id)
+    def get_percentages(self, class_id):
+        return self.percentages.find_by_class_id(class_id)
 
-    def get_components(self, offering_id):
-        return self.components.find_by_offering_id(offering_id)
+    def get_components(self, class_id):
+        return self.components.find_by_class_id(class_id)
 
     def get_teacher(self, teacher_id):
         teacher = self.teachers.find_by_id(teacher_id)
@@ -54,6 +54,15 @@ class AcademicService:
             raise ValueError('Teacher ID, names, department and status are required.')
         self.teachers.save(*args)
 
+    def create_teacher(self, teacher_id, first_name, last_name, email, department, status):
+        from psycopg.errors import UniqueViolation
+        if not all(str(v or '').strip() for v in (teacher_id,first_name,last_name,department,status)):
+            raise ValueError('Teacher ID, names, department and status are required.')
+        try:
+            self.teachers.create(teacher_id,first_name,last_name,email,department,status)
+        except UniqueViolation as error:
+            raise ValueError('Teacher ID or email already exists.') from error
+
     def save_subject(self, subject_id, subject_code, subject_name, description, units):
         if not all([subject_id, subject_code, subject_name, str(units).strip()]):
             raise ValueError("Subject ID, code, name, and units are required.")
@@ -64,18 +73,21 @@ class AcademicService:
             subject_id, subject_code, subject_name, description, units
         )
 
-    def save_offering(self, offering_id, class_code, schedule, section,
+    def save_offering(self, class_id, class_code, schedule, section,
                       school_year, semester, room, teacher_id, subject_id):
-        if not all([offering_id, class_code, schedule, section,
+        if not all([class_id, class_code, schedule, section,
                     school_year, semester, teacher_id, subject_id]):
             raise ValueError("Required class offering fields are missing.")
         if not self.teachers.find_by_id(teacher_id):
             raise ValueError("Teacher not found.")
         if not self.subjects.find_by_id(subject_id):
             raise ValueError("Subject not found.")
+        from app.services.scheduling import normalize_meetings,format_schedule
+        meetings=normalize_meetings(schedule)
+        schedule=format_schedule(meetings)
         self.offerings.save(
-            offering_id, class_code, schedule, section, school_year,
-            semester, room, teacher_id, subject_id
+            class_id, class_code, schedule, section, school_year,
+            semester, room, teacher_id, subject_id, meetings=meetings
         )
 
     def save_period(self, period_id, name, start_date, end_date,
@@ -90,51 +102,13 @@ class AcademicService:
             period_id, name, start_date, end_date, school_year, semester, int(period_order)
         )
 
-    def save_percentage(self, percentage_id, percentage, offering_id):
-        if not self.offerings.find_by_id(offering_id):
-            raise ValueError("Class offering not found.")
-        percentage = float(percentage)
-        if percentage <= 0 or percentage > 100:
-            raise ValueError("Percentage must be between 0 and 100.")
-        self.percentages.save(percentage_id, percentage, offering_id)
-
-    def save_component(self, component_id, name, component_type, max_score,
-                       description, period_id, percentage_id):
-        if not all([component_id, name, component_type, period_id, percentage_id]):
-            raise ValueError("Required grade component fields are missing.")
+    def save_component(self, component_id, name, component_type, max_score, description, period_id):
+        from app.calculator.period_calculator import number
+        if not all(str(v or '').strip() for v in (component_id,name,component_type,period_id)):
+            raise ValueError('Required grade component fields are missing.')
         if not self.periods.find_by_id(period_id):
-            raise ValueError("Grading period not found.")
-        percentage = self.percentages.find_by_id(percentage_id)
-        if not percentage:
-            raise ValueError("Grade percentage not found.")
-        max_score = float(max_score)
-        if max_score <= 0:
-            raise ValueError("Maximum score must be greater than zero.")
-        self.components.save(
-            component_id, name, component_type, max_score,
-            description, period_id, percentage_id
-        )
-
-    def delete_teacher(self, teacher_id):
-        if not self.teachers.delete(teacher_id):
-            raise ValueError("Teacher not found.")
-
-    def delete_subject(self, subject_id):
-        if not self.subjects.delete(subject_id):
-            raise ValueError("Subject not found.")
-
-    def delete_offering(self, offering_id):
-        if not self.offerings.delete(offering_id):
-            raise ValueError("Class offering not found.")
-
-    def delete_period(self, period_id):
-        if not self.periods.delete(period_id):
-            raise ValueError("Grading period not found.")
-
-    def delete_percentage(self, percentage_id):
-        if not self.percentages.delete(percentage_id):
-            raise ValueError("Grade percentage not found.")
-
-    def delete_component(self, component_id):
-        if not self.components.delete(component_id):
-            raise ValueError("Grade component not found.")
+            raise ValueError('Grading period not found.')
+        maximum=number(max_score)
+        if maximum<=0:
+            raise ValueError('Maximum score must be greater than zero.')
+        self.components.save(component_id,name,component_type,maximum,description,period_id)

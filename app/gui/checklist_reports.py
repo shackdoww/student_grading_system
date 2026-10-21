@@ -2,15 +2,15 @@
 from decimal import Decimal, ROUND_HALF_UP
 
 
-def _context(records, offering_id):
-    offering = next(r for r in records['class_offerings'] if r['offering_id'] == offering_id)
-    subject = next(r for r in records['subjects'] if r['subject_id'] == offering['subject_id'])
-    teacher = next(r for r in records['teachers'] if r['teacher_id'] == offering['teacher_id'])
+def _context(records, class_id):
+    offering = next(r for r in records['class'] if r['class_id'] == class_id)
+    subject = next(r for r in records['subject'] if r['subject_id'] == offering['subject_id'])
+    teacher = next(r for r in records['teacher'] if r['teacher_id'] == offering['teacher_id'])
     return offering, subject, teacher
 
 
 def saved_result(snapshot, enrollment_id):
-    saved = next((r for r in snapshot.records()['period_grade_results'] if r['enrollment_id'] == enrollment_id), None)
+    saved = next((r for r in snapshot.records()['grade'] if r['enrollment_id'] == enrollment_id), None)
     try:
         current = snapshot.period_result(enrollment_id, include_equivalents=True)
     except ValueError:
@@ -18,16 +18,16 @@ def saved_result(snapshot, enrollment_id):
     fields = ['midterm_equiv','finals_equiv','final_equiv']
     if not saved or any(saved.get(k) is None for k in fields):
         return None, 'Not saved'
-    if any(float(saved[k+'_grade']) != current[k] for k in ['midterm','final','overall']) or any(float(saved[k]) != current[k] for k in fields):
+    if any(saved.get(field) is None or float(saved[field]) != current[k] for k,field in [('midterm','midterm_grade'),('final','finals_grade'),('overall','overall_grade')]) or any(float(saved[k]) != current[k] for k in fields):
         return None, 'Recompute required'
     return saved, saved.get('remarks') or 'Saved'
 
 
-def class_report(snapshot, offering_id, grade_sheet=False):
+def class_report(snapshot, class_id, grade_sheet=False):
     records = snapshot.records()
-    offering, subject, teacher = _context(records,offering_id)
-    students = {s['student_id']:s for s in records['students']}
-    roster = [r for r in records['enrollments'] if r['offering_id']==offering_id and r['status']!='Dropped']
+    offering, subject, teacher = _context(records,class_id)
+    students = {s['student_id']:s for s in records['student']}
+    roster = [r for r in records['enrollment'] if r['class_id']==class_id and r['status']!='Dropped']
     roster.sort(key=lambda r:(students[r['student_id']]['last_name'].casefold(),students[r['student_id']]['first_name'].casefold()))
     rows=[]
     for number,enrollment in enumerate(roster,1):
@@ -47,16 +47,16 @@ def class_report(snapshot, offering_id, grade_sheet=False):
 
 def student_report(snapshot, student_id, school_year, semester):
     records=snapshot.records()
-    student=next(r for r in records['students'] if r['student_id']==student_id)
+    student=next(r for r in records['student'] if r['student_id']==student_id)
     year=student.get('year_level')
     suffix={1:'st',2:'nd',3:'rd'}.get(year,'th')
     metadata=[f"Student Name: {student['last_name']}, {student['first_name']}     Course: {student['program']}     Year: {str(year)+suffix if year else 'Not entered'}",
               f'Term: {semester} Semester, SY {school_year}']
     enrolled=[]
-    for enrollment in records['enrollments']:
+    for enrollment in records['enrollment']:
         if enrollment['student_id'] != student_id or enrollment['status']=='Dropped':
             continue
-        offering,subject,teacher=_context(records,enrollment['offering_id'])
+        offering,subject,teacher=_context(records,enrollment['class_id'])
         if (offering['school_year'],offering['semester']) == (school_year,semester):
             enrolled.append((subject['subject_code'],enrollment,subject,teacher))
     rows=[]; units=Decimal(0); weighted=Decimal(0); complete=True

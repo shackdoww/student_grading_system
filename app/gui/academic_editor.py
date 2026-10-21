@@ -9,19 +9,18 @@ from PySide6.QtWidgets import (
 
 # Field order matches the existing application-service contracts.
 RECORDS = {
-    'Teachers': ('teachers', 'teacher', 'teacher_id first_name last_name email department status'),
-    'Subjects': ('subjects', 'subject', 'subject_id subject_code subject_name description units'),
-    'Grading Periods': ('grading_periods', 'period', 'period_id name start_date end_date school_year semester period_order'),
-    'Class Offerings': ('class_offerings', 'offering', 'offering_id class_code schedule section school_year semester room teacher_id subject_id'),
-    'Weights': ('grade_percentages', 'percentage', 'percentage_id percentage offering_id'),
-    'Components': ('grade_components', 'component', 'component_id name type max_score description period_id percentage_id'),
+    'Teachers': ('teacher', 'teacher', 'teacher_id first_name last_name email department status'),
+    'Subjects': ('subject', 'subject', 'subject_id subject_code subject_name description units'),
+    'Grading Periods': ('grading_period', 'period', 'period_id name start_date end_date school_year semester period_order'),
+    'Class Offerings': ('class', 'offering', 'class_id class_code schedule section school_year semester room teacher_id subject_id'),
+    'Components': ('grade_component', 'component', 'component_id name type max_score description period_id'),
 }
 REFERENCES = {
-    'teacher_id': ('teachers', 'teacher_id', 'last_name'),
-    'subject_id': ('subjects', 'subject_id', 'subject_name'),
-    'offering_id': ('class_offerings', 'offering_id', 'class_code'),
-    'period_id': ('grading_periods', 'period_id', 'name'),
-    'percentage_id': ('grade_percentages', 'percentage_id', 'percentage'),
+    'teacher_id': ('teacher', 'teacher_id', 'last_name'),
+    'subject_id': ('subject', 'subject_id', 'subject_name'),
+    'class_id': ('class', 'class_id', 'class_code'),
+    'period_id': ('grading_period', 'period_id', 'name'),
+    'percentage_id': ('grade_percentage', 'percentage_id', 'percentage'),
 }
 
 
@@ -38,7 +37,11 @@ class RecordDialog(QDialog):
         root.addLayout(form)
         for index, field in enumerate(fields):
             value = str((record or {}).get(field) or '')
-            if index and field in REFERENCES:
+            if field == 'schedule':
+                from app.gui.schedule_editor import ScheduleEditor
+                meetings=[r for r in records.get('class_meeting',[]) if r['class_id']==(record or {}).get('class_id')]
+                widget=ScheduleEditor(self,meetings,value)
+            elif index and field in REFERENCES:
                 source, key, label = REFERENCES[field]
                 widget = QComboBox()
                 for row in records[source]:
@@ -48,7 +51,7 @@ class RecordDialog(QDialog):
             else:
                 widget = QLineEdit(value)
                 if not record and field == 'period_order':
-                    widget.setText(str(len(records['grading_periods'])+1))
+                    widget.setText(str(len(records['grading_period'])+1))
                 if field == 'email':
                     widget.setPlaceholderText('Optional')
                 if field.endswith('_date'):
@@ -57,6 +60,9 @@ class RecordDialog(QDialog):
                     widget.setReadOnly(True)
             form.addRow(field.replace('_', ' ').title(), widget)
             self.inputs[field] = widget
+        self.source = QLineEdit()
+        self.source.setPlaceholderText('Optional source / reference')
+        form.addRow('Source / reference', self.source)
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -66,6 +72,9 @@ class RecordDialog(QDialog):
         result = []
         for field in self.fields:
             widget = self.inputs[field]
+            if field == 'schedule':
+                result.append(widget.values())
+                continue
             value = widget.currentData() if isinstance(widget, QComboBox) else widget.text().strip()
             if field.endswith('_date'):
                 value = date.fromisoformat(value)
@@ -75,7 +84,7 @@ class RecordDialog(QDialog):
 
 def add_editor_actions(layout, app, name, table):
     actions = QHBoxLayout()
-    permission = 'grading' if name in ['Weights', 'Components'] else 'academic'
+    permission = 'academic'
     for label, editing in [('Add', False), ('Edit selected', True)]:
         control = QPushButton(label)
         control.setEnabled(app.can(permission))
@@ -116,8 +125,9 @@ def edit_record(app, name, table, editing):
         values = dialog.values()
         if not editing and any(r[fields[0]] == values[0] for r in records[source]):
             raise ValueError('This ID already exists. Use Edit selected instead.')
-        operation = getattr(app.academic_service, f'save_{method}')
-        app.run_write(lambda: operation(*values), 'Record saved.')
+        operation = getattr(app.academic_service, 'create_teacher' if name=='Teachers' and not editing else f'save_{method}')
+        reference=dialog.source.text().strip() or None
+        app.run_write(lambda: operation(*values,source_reference=reference), 'Record saved.')
     except (ValueError, TypeError) as error:
         app.error(str(error))
 

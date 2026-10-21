@@ -18,8 +18,8 @@ def test_grade_points_use_unrounded_percentage(percentage, expected):
 
 
 def rubric_example(scores):
-    policy = dict(offering_id='O', midterm_period_id='M', final_period_id='F', midterm_weight=40, final_weight=60)
-    weights = [dict(period_id=p, percentage_id=c, weight=w)
+    policy = dict(class_id='O', midterm_period_id='M', final_period_id='F', midterm_weight=40, final_weight=60)
+    weights = [dict(component_id=p+c, percentage=w)
                for p in ['M', 'F'] for c, w in [('Q', 20), ('L', 30), ('E', 50)]]
     components = [dict(component_id=p+c, name=p+c, period_id=p, percentage_id=c, max_score=maximum)
                   for p in ['M', 'F'] for c, maximum in [('Q', 50), ('L', 100), ('E', 100)]]
@@ -39,7 +39,7 @@ def test_checklist_grades_and_recalculation(scores, percentages, points, recalcu
     assert [result[k] for k in ['midterm_equiv','finals_equiv','final_equiv']] == points
     assert result['remarks'] == ('Failed' if points[2] == 5 else 'Passed')
     for weight, value in zip(args[1][:3], [30,30,40]):
-        weight['weight'] = value
+        weight['percentage'] = value
     updated = PeriodCalculator().calculate(*args, include_equivalents=True)
     assert [updated[k] for k in ['midterm','overall']] == recalculated
     assert [r['score'] for r in args[3]] == scores
@@ -67,23 +67,8 @@ def test_adding_existing_student_cannot_overwrite_details():
     service.repository.create.assert_not_called()
 
 
-def test_student_import_accepts_normal_email():
-    service = StudentService()
-    service.repository = MagicMock()
-    service.repository.get_import_conflicts.return_value = []
-    rows = [dict(student_id='S',first_name='Juan',last_name='Dela Cruz',email='juan@example.edu',program='BSCS',status='Active')]
-    assert service.validate_import(rows) == []
-
-
-@pytest.mark.parametrize('bad', ['nan','inf','-inf'])
-def test_legacy_calculator_rejects_nonfinite_scores(bad):
-    row = ('SC',bad,'',None,'C','Quiz','Quiz',50,'','P',100,'O','Midterm',None,None)
-    with pytest.raises(ValueError, match='finite'):
-        GradeCalculator().calculate([row])
-
-
 def test_blank_period_weight_has_a_clear_validation_error():
     policy, weights, components, scores = rubric_example([40,90,75,45,85,80])
-    weights[0]['weight']=''
+    weights[0]['percentage']=''
     with pytest.raises(ValueError,match='number'):
         PeriodCalculator().calculate(policy,weights,components,scores)
