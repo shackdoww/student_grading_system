@@ -3,7 +3,7 @@
 The work modifies the existing `shackdoww/student_grading_system` checkout,
 starting from main commit `6242e25`, on local branch
 `feat/rubric-database-alignment`. No replacement application or GitHub repository
-was created. The branch has not been pushed or merged into GitHub main.
+was created. This report records the local verification and review completed before publication.
 
 ## Verification
 
@@ -49,5 +49,5 @@ external school databases and production-scale performance were not judged.
 - Preserve ambiguous legacy schedule text for explicit time review, and archive
   old percentage-only grades when period data is unavailable. Users must confirm
   those schedules/configurations and recompute rather than accept invented data.
-- Keep the branch local within the agreed scope; no external school database was
-  upgraded and no GitHub push was performed.
+- No external school database was upgraded. GitHub publication is a separate
+  repository operation authorized by the owner after local verification.
