@@ -4,6 +4,7 @@ from contextvars import ContextVar
 
 import psycopg
 from dotenv import load_dotenv
+from app.database.provenance import source_reference
 
 load_dotenv()
 _actor = ContextVar('grade_audit_actor', default='system')
@@ -27,6 +28,6 @@ def get_connection():
         password=os.getenv("DB_PASSWORD"),
         connect_timeout=5
     )
-    connection.execute("SELECT set_config('app.actor', %s, false)", (_actor.get(),))
+    connection.execute("SELECT set_config('app.actor', %s, false), set_config('app.source', %s, false)", (_actor.get(), source_reference()))
     connection.commit()
     return connection
