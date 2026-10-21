@@ -1,0 +1,5 @@
+﻿grade_id,enrollment_id,midterm_grade,finals_grade,overall_grade,midterm_equiv,finals_equiv,final_equiv,remarks,set_by
+1,1,81.00,83.50,82.50,2.50,2.25,2.25,Passed,GR-01; GR-02; GR-03
+2,2,52.00,65.50,60.10,5.00,5.00,5.00,Failed,GR-01; GR-02; GR-03
+3,3,100.00,93.70,96.22,1.00,1.50,1.25,Passed,GR-01; GR-02
+4,5,90.00,90.00,90.00,1.75,1.75,1.75,Passed,Report setup

@@ -96,6 +96,10 @@ Accounts/permissions and protected atomic batch deletion are documented in
 
 ## CSV import
 
+The CRUD document’s final appendix dataset is ready to import from
+[`test_data/crud_test_case`](test_data/crud_test_case/README.md). Select that folder
+in Data Import to load the five students, two classes and four saved grades.
+
 Canonical imports support the rubric-shaped columns, optional emails/year levels,
 structured class meetings, policies and consolidated grades. Import validation
 runs the actual PostgreSQL constraints inside a rolled-back transaction. A failed

@@ -1,0 +1,5 @@
+﻿enrollment_id,student_id,class_id,status,set_by
+1,2026-0001,1,Enrolled,EN-01
+2,2026-0002,1,Enrolled,EN-01; Dropped and back to Enrolled in EN-05
+3,2026-0003,1,Enrolled,EN-01
+5,2026-0001,2,Enrolled,Report setup

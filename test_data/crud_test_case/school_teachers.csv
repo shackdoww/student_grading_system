@@ -1,0 +1,3 @@
+﻿teacher_id,first_name,last_name,email,department,status,set_by
+T-1001,Maria,Santos,,Information Technology Department,Active,TE-01; department changed in TE-04
+T-1002,Jose,Ramos,,Physical Education Department,Active,Report setup

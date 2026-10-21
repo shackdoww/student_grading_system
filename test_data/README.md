@@ -1,5 +1,8 @@
 # Legacy school CSV example
 
+For the CRUD document’s final appendix records, use
+[`crud_test_case/`](crud_test_case/README.md) instead of this parent folder.
+
 These ten files describe the older class-owned category model (30 students,
 8 teachers, 12 subjects/classes, 60 enrollments and 360 scores). They are not the
 rubric's final demonstration dataset and must not be presented as such.

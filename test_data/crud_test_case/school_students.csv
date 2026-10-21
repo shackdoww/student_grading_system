@@ -1,0 +1,6 @@
+﻿student_id,first_name,last_name,email,program,status,year_level,set_by
+2026-0001,Juan,Dela Cruz,,BSCS,Active,2,ST-01
+2026-0002,Pedro,Reyes,,BSCS,Active,2,ST-01
+2026-0003,Ana,Garcia,,BSCS,Active,2,ST-01; program BSIT → BSCS in ST-05
+2026-0098,Carlo,Mendoza,,BSIT,Active,1,"EN-06 (student kept, enrollment removed)"
+2026-0004,Kevin,O'Brien,,BSIT,Active,1,PS-02

@@ -1,0 +1,7 @@
+﻿component_id,period_id,name,type,max_score,description,set_by
+1,1,Midterm Quiz,Quiz,50,,GC-01; delete blocked in GC-03
+2,1,Midterm Laboratory/Project,Laboratory,100,,GC-01
+3,1,Midterm Examination,Exam,100,,GC-01
+4,2,Final Quiz,Quiz,50,,GC-01
+5,2,Final Laboratory/Project,Laboratory,100,,GC-01
+6,2,Final Examination,Exam,100,,GC-01
