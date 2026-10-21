@@ -37,7 +37,7 @@ from app.services.period_grading_service import PeriodGradingService
 
 
 from app.gui.theme import (
-    ACCENT, ACCENT_SOFT, MUTED, ON_ACCENT, STYLE, apply_theme,
+    ACCENT, ACCENT_SOFT, DANGER, MUTED, ON_ACCENT, STYLE, WARNING, apply_theme,
 )
 
 ENROLLMENT_ROLE = Qt.UserRole + 1
@@ -171,9 +171,9 @@ def fill_table(t, rows):
             heading = t.horizontalHeaderItem(c)
             if heading and heading.text().lower() in ('status', 'remarks'):
                 status_color = {
-                    'Active': '#C8EB8A', 'Enrolled': '#C8EB8A', 'Passed': '#C8EB8A',
-                    'Inactive': '#F39591', 'Dropped': '#F39591', 'Failed': '#F39591',
-                    'Incomplete': '#EBC779',
+                    'Active': ACCENT, 'Enrolled': ACCENT, 'Passed': ACCENT,
+                    'Inactive': DANGER, 'Dropped': DANGER, 'Failed': DANGER,
+                    'Incomplete': WARNING,
                 }.get(str(value))
                 if status_color:
                     item.setForeground(QColor(status_color))

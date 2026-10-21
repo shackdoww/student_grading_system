@@ -29,14 +29,14 @@ provided. A graphical desktop/display is required for interactive use.
 
 ### Desktop appearance
 
-The interface uses a charcoal and lime theme across the dashboard, tables,
+The interface uses a white light theme with green accents across the dashboard, tables,
 editors, grading controls and sign-in screen. Navigation starts as a compact
 icon rail; hover for page names or use **Expand navigation** below the SH mark
 to show labels. Expanding the rail preserves the current page and role access.
 Keyboard focus remains visible, and status labels retain their text as well as
 their color. The existing reduced-motion setting also applies to this theme.
 
-![Student Hub dark dashboard](docs/screenshots/student-hub-dark.png)
+![Student Hub light dashboard](docs/screenshots/student-hub-light.png)
 
 ### Existing databases
 
